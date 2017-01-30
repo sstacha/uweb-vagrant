@@ -1,0 +1,100 @@
+#!/bin/bash
+# script to back up and archive files NOTE: ideally would call svn or git commit to keep in version control
+# example1: archive httpd.conf -> will archive httpd.conf with current directory to archive directory preserving directory structure
+# example2: archive -c httpd.conf -> will replace the current archive file in the current dir location with the existing file preserving directory structure
+# the idea being you can re-create a server and then lay down the current files to replace configurations easily
+
+CURDIR=$(pwd)
+ARCHIVE_DIR=/home/ubuntu/archived_files
+CURRENT_DIR=/home/ubuntu/current_files
+
+yell() { echo "$0: $*" >&2; }
+die() { yell "$*"; exit 111; }
+try() { "$@" || die "cannot $*"; }
+log_verbose=false
+log () {
+		if [ "$log_verbose" = "true" ] ; then
+        	# log all messages
+        	echo $1;
+        fi
+}
+
+# Initialize our own variables:
+output_file=""
+_current=false
+# parse all options suing getargs...
+# A POSIX variable
+OPTIND=1         # Reset in case getopts has been used previously in the shell.
+
+while getopts "h?vcf:" opt; do
+    case "$opt" in
+    h|\?)
+        show_help
+        exit 0
+        ;;
+    v)  log_verbose=true
+        ;;
+    c)  _current=true
+        ;;
+    f)  output_file=$OPTARG
+        ;;
+    esac
+done
+
+shift $((OPTIND-1))
+
+[ "$1" = "--" ] && shift
+
+log "verbose=$verbose, current=$current output_file='$output_file', Leftovers: $@"
+if [ -z $output_file ]; then
+	output_file=$@
+fi
+
+dirs_exist=0
+# check that we have appropriate directories or bail
+if [ -f "$ARCHIVE_DIR" ]; then
+	if [ -f "$CURRENT_DIR" ]; then
+		dirs_exist = 1
+	fi
+fi
+if [ $dirs_exist ]; then
+	log 'archive and current directories exist; continuing...'
+else
+	echo 'ERROR: archive and current directory does not exist'
+	echo "run: sudo mkdir -p $ARCHIVE_DIR"
+	echo "run: sudo mkdir -p $CURRENT_DIR"
+	echo "run: sudo chown -R sstacha:_developer $ARCHIVE_DIR"
+	echo "run: sudo chown -R sstacha:_developer $CURRENT_DIR"
+	echo "run: sudo chmod -R 775 $ARCHIVE_DIR"
+	echo "run: sudo chmod -R 775 $CURRENT_DIR"
+	echo " then try archiving your file again"
+	exit 1
+fi		
+
+# end of variable parsing
+
+# get the current directory for use
+CURDIR=$(pwd)
+# home dirs are not good try to create a archive dir under /var/
+try mkdir -p $ARCHIVE_DIR$CURDIR
+dtf=`date +%Y%m%d%H%M%S`
+try cp -a $output_file $ARCHIVE_DIR$CURDIR/$output_file.$dtf
+echo archived $ouput_file to $ARCHIVE_DIR$CURDIR/$output_file.$dtf
+
+log '$_current: '$_current
+if [ "$_current" = "true" ]; then
+	log 'setting current files...'
+	try mkdir -p $CURRENT_DIR$CURDIR		
+	cp -a $output_file $CURRENT_DIR$CURDIR/$output_file
+	echo archived $output_file to $CURRENT_DIR$CURDIR/$output_file
+fi
+
+# try to cleanup lots of files...
+cnt=$(ls $ARCHIVE_DIR$CURDIR/$output_file.* | wc -l)
+if [ $cnt -lt 11 ]; then
+	echo $cnt' archived versions of this file found; not enough to cleanup...'
+else
+	echo $cnt' archived versions of this file found; cleaning up old files...'
+	ls -t $ARCHIVE_DIR$CURDIR/$output_file.* | tail -n +11 | xargs rm -f --
+fi
+echo 'done'
