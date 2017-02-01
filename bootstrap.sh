@@ -11,6 +11,7 @@ getent group _developer || groupadd _developer
 # NOTE: had problems with permissions not being set right.  
 # making sure these are created as ubuntu not root on provisioning
 mkdir -p /home/ubuntu/vm_scripts
+mkdir -p /home/ubuntu/uploads
 export WEBSITE_BASE=/home/ubuntu/website
 mkdir -p $WEBSITE_BASE
 chown ubuntu:ubuntu $WEBSITE_BASE
@@ -36,6 +37,8 @@ try apt-get install nodejs build-essential git nginx -y
 usermod -a -G www-data ubuntu
 usermod -a -G _developer ubuntu
 
+# copy over the nginx file
+cp -f /vagrant/vm_files/default /etc/nginx/sites-available/default
 # provisioning blank website project code from git if the directory does not exist
 # NOTE: assuming ../website directory so developer can check in as thier own code.
 # TODO: replace this call with your git docroot checkin

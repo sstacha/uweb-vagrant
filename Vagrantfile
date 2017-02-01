@@ -43,7 +43,7 @@ Vagrant.configure("2") do |config|
   config.vm.synced_folder "../vm_current_files", "/home/ubuntu/current_files", create: true
   config.vm.synced_folder "../vm_archived_files", "/home/ubuntu/archived_files", create: true
   #config.vm.synced_folder "/var/ubuntu/website/logs", "../logs"
-  #config.vm.synced_folder "/home/ubuntu/website", "../website"
+  config.vm.synced_folder "../uploads/", "/home/ubuntu/website/uploads", create: true, user: "ubuntu", group: "www-data"
 
   # Provider-specific configuration so you can fine-tune various
   # backing providers for Vagrant. These expose provider-specific options.
