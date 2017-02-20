@@ -1,0 +1,18 @@
+[Unit]
+Description=UberWeb CMS
+After=syslog.target network.target
+
+[Service]
+ExecStart=/usr/local/bin/node /vagrant/vm_files/helloworld.js
+# Type=forking
+# WorkingDirectory=/vagrant/uweb
+Restart=always
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=uweb
+User=www-data
+Group=_developer
+Environment=NODE_ENV=dev
+
+[Install]
+WantedBy=default.target

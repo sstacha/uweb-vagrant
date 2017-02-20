@@ -63,8 +63,8 @@ else
 	echo 'ERROR: archive and current directory does not exist'
 	echo "run: sudo mkdir -p $ARCHIVE_DIR"
 	echo "run: sudo mkdir -p $CURRENT_DIR"
-	echo "run: sudo chown -R sstacha:_developer $ARCHIVE_DIR"
-	echo "run: sudo chown -R sstacha:_developer $CURRENT_DIR"
+	echo "run: sudo chown -R ubuntu:_developer $ARCHIVE_DIR"
+	echo "run: sudo chown -R ubuntu:_developer $CURRENT_DIR"
 	echo "run: sudo chmod -R 775 $ARCHIVE_DIR"
 	echo "run: sudo chmod -R 775 $CURRENT_DIR"
 	echo " then try archiving your file again"

@@ -48,9 +48,8 @@ server {
 		try_files /cache$uri
                     /cache/$uri
                     /cache/$uri/index.html 
-                    /files$uri
-                    /files/$uri
-                    /files/$uri/index.html
+                    /images$uri
+                    /images/$uri
                     /docroot$uri 
                     /docroot/$uri
                     /docroot/$uri/index.html =404;

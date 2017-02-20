@@ -1,6 +1,21 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+required_plugins = %w( vagrant-fsnotify )
+required_plugins.each do |plugin|
+    exec "vagrant plugin install #{plugin};vagrant #{ARGV.join(" ")}" unless Vagrant.has_plugin? plugin || ARGV[0] == 'plugin'
+end
+
+# in case something goes wrong with the auto install lets check
+#[
+#  { :name => "vagrant-fsnotify", :version => ">= 0.3.0" }
+#].each do |plugin|
+#
+#  if not Vagrant.has_plugin?(plugin[:name], plugin[:version])
+#    raise "#{plugin[:name]} #{plugin[:version]} is required. Please run `vagrant plugin install #{plugin[:name]}`"
+#  end
+#end
+
 # All Vagrant configuration is done below. The "2" in Vagrant.configure
 # configures the configuration version (we support older styles for
 # backwards compatibility). Please don't change it unless you know what
@@ -39,11 +54,11 @@ Vagrant.configure("2") do |config|
   # argument is a set of non-required options.
   # config.vm.synced_folder "../website/", "/home/ubuntu/website", create: true
   # config.vm.synced_folder "../vm_scripts/", "/home/ubuntu/vm_scripts", create: true
-  config.vm.synced_folder "../docroot/", "/home/ubuntu/website/docroot", create: true, user: "ubuntu", group: "www-data"
+  config.vm.synced_folder "../docroot/", "/home/ubuntu/website/docroot", create: true, user: "ubuntu", group: "www-data", fsnotify: true
   config.vm.synced_folder "../vm_current_files", "/home/ubuntu/current_files", create: true
   config.vm.synced_folder "../vm_archived_files", "/home/ubuntu/archived_files", create: true
   #config.vm.synced_folder "/var/ubuntu/website/logs", "../logs"
-  config.vm.synced_folder "../uploads/", "/home/ubuntu/website/uploads", create: true, user: "ubuntu", group: "www-data"
+#  config.vm.synced_folder "../uploads/", "/home/ubuntu/website/uploads", create: true, user: "ubuntu", group: "www-data", type: "rsync", rsync__exclude: ".git/"
 
   # Provider-specific configuration so you can fine-tune various
   # backing providers for Vagrant. These expose provider-specific options.

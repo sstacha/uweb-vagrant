@@ -1,0 +1,17 @@
+[Unit]
+Description=UberWeb CMS Grunt Image Watchdog
+After=syslog.target network.target
+
+[Service]
+ExecStart=/usr/local/bin/grunt watch
+WorkingDirectory=/vagrant/uweb
+Restart=always
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=uweb
+User=www-data
+Group=_developer
+Environment=NODE_ENV=dev
+
+[Install]
+WantedBy=multi-user.target
