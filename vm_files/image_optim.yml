@@ -1,0 +1,4 @@
+nice: 20
+pngout: false # disable
+optipng:
+  level: 5

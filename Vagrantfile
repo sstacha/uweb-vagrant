@@ -7,14 +7,6 @@ required_plugins.each do |plugin|
 end
 
 # in case something goes wrong with the auto install lets check
-#[
-#  { :name => "vagrant-fsnotify", :version => ">= 0.3.0" }
-#].each do |plugin|
-#
-#  if not Vagrant.has_plugin?(plugin[:name], plugin[:version])
-#    raise "#{plugin[:name]} #{plugin[:version]} is required. Please run `vagrant plugin install #{plugin[:name]}`"
-#  end
-#end
 
 # All Vagrant configuration is done below. The "2" in Vagrant.configure
 # configures the configuration version (we support older styles for
@@ -69,7 +61,7 @@ Vagrant.configure("2") do |config|
   #   vb.gui = true
   #
   #   # Customize the amount of memory on the VM:
-     vb.memory = "2048"
+     vb.memory = "5263"
   end
   #
   # View the documentation for the provider you are using for more

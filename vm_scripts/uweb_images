@@ -10,19 +10,27 @@ log () {
 }
 
 show_help() {
-    echo "usage: ./uweb_images.sh [-a][-v][-r][-d]"
+    echo "usage: ./uweb_images.sh [-h][-a][-v][-c][-o]"
+    echo "     -h: show usage help"
+    echo "     -a: all (runs both convert and optimize)"
+    echo "     -c: convert all images and crop any >1028 width"
+    echo "     -o: optimize images with compression (uses image_optim)"
+    echo " no option: start in watch mode for folder changes"
 }
 
 # Initialize our own variables:
+maxsize=1024
 defaultsize=600
-docbase='/home/ubuntu/website/docroot'
-imgbase='/home/ubuntu/website/images'
+# docbase='/home/ubuntu/website/docroot'
+# imgbase='/home/ubuntu/website/images'
+docbase='/vagrant/test_images'
+imgbase='/vagrant/test_optimized'
 
 # parse all options using getargs...
 # A POSIX variable
 OPTIND=1         # Reset in case getopts has been used previously in the shell.
 
-while getopts "h?varf:" opt; do
+while getopts "h?vacorf:" opt; do
     case "$opt" in
     h|\?)
         show_help
@@ -31,6 +39,10 @@ while getopts "h?varf:" opt; do
     v)  log_verbose=true
         ;;
     a)  _all=true
+        ;;
+    c)  _convert=true
+        ;;
+    o)  _optimize=true
         ;;
     r)  _regex=$OPTARG
         ;;
@@ -51,21 +63,21 @@ fi
 get_responsive_image_suffix() {
     pattern=$1
     size=$2
-    echo "size: $size"
+    log "size: $size"
     ext=$(expr match "$1" '.*\(\.[a-Z]*\)')
-    echo "ext: $ext"
-    echo "pattern: $pattern"
+    log "ext: $ext"
+    log "pattern: $pattern"
     extlen=${#ext}
-    echo "extlen: $extlen"
+    log "extlen: $extlen"
     filelen=${#pattern}
-    echo "filelen: $filelen"
+    log "filelen: $filelen"
     poslen=$(expr $filelen - $extlen)
-    echo "poslen: $poslen"
+    log "poslen: $poslen"
     if [[ "$size" ]] && [[ "$size" != $defaultsize ]]; then
-        echo "returning: $size${1:$poslen}"
+        log "returning: $size${1:$poslen}"
         echo $size"${1:$poslen}"
     else
-        echo "returning: ${1:$poslen+1}"
+        log "returning: ${1:$poslen+1}"
         echo "${1:$poslen+1}"
     fi
 }
@@ -97,17 +109,12 @@ smartresize() {
     if ls $pattern 1> /dev/null 2>&1; then
 #    if [[ "$ris" ]]; then
 #        echo "ris: $ris"
-        mogrify -path $3 -format "$mogrify_ext" -filter Triangle -define filter:support=2 -thumbnail $2 -unsharp 0.25x0.08+8.3+0.045 -dither None -posterize 136 -quality 82 -define jpeg:fancy-upsampling=off -define png:compression-filter=5 -define png:compression-level=9 -define png:compression-strategy=1 -define png:exclude-chunk=all -interlace none -colorspace sRGB $1
+        mogrify -path $3 -format "$mogrify_ext" -resize $maxsize\> -filter Triangle -define filter:support=2 -thumbnail 100% -unsharp 0.25x0.08+8.3+0.045 -dither None -posterize 136 -quality 82 -define jpeg:fancy-upsampling=off -define png:compression-filter=5 -define png:compression-level=9 -define png:compression-strategy=1 -define png:exclude-chunk=all -interlace none -colorspace sRGB $1
 #    else
 #        mogrify -path $3 -filter Triangle -define filter:support=2 -thumbnail $2 -unsharp 0.25x0.08+8.3+0.045 -dither None -posterize 136 -quality 82 -define jpeg:fancy-upsampling=off -define png:compression-filter=5 -define png:compression-level=9 -define png:compression-strategy=1 -define png:exclude-chunk=all -interlace none -colorspace sRGB $smartresizepattern
 #    fi
     fi
 }
-
-smartresize2() {
-    mogrify -path $3 -filter Triangle -define filter:support=2 -thumbnail $2 -unsharp 0.25x0.08+8.3+0.045 -dither None -posterize 136 -quality 82 -define jpeg:fancy-upsampling=off -define png:compression-filter=5 -define png:compression-level=9 -define png:compression-strategy=1 -define png:exclude-chunk=all -interlace none -colorspace sRGB $1
-}
-
 
 get_responsive_image_name() {
     ext=$(expr match "$1" '.*\(\.[a-Z]*\)')
@@ -187,8 +194,14 @@ is_img_ext() {
 }
 
 log '$_all: '$_all
+log '$_convert: '$_convert
 if [ "$_all" = "true" ]; then
-	log 'wiping and reloading the complete image directory...'
+    _convert="true"
+    _optimize="true"
+	log 'running conversion and optimization on the image directory...'
+fi
+if [ "$_convert" = "true" ]; then
+	log 'wiping and converting the image directory...'
     cd $imgbase
 	rm -rf *	
 	echo "images deleted.  recreating..."
@@ -196,73 +209,85 @@ if [ "$_all" = "true" ]; then
     # smartresize2 ".*\.\(jpg\|jpeg\|png\|gif\|tiff\)$" 600 $imgbase
     for d in $(find . -type d); do
         adp=$(get_absolute_docroot_path $d)
-        echo "absolute docroot path $adp"
+        echo $adp
+        # echo "absolute docroot path $adp"
         aip=$(get_absolute_image_path $d)
-        echo "absolute image path $aip"
+        # echo "absolute image path $aip"
         mkdir -p $aip
         cd $adp
         # smartresize '*.{jpg|jpeg|gif|tiff|png}' 300 $aip
         # smartresize '*.{jpg|jpeg|gif|tiff|png}' 600 $aip
         # smartresize '*.{jpg|jpeg|gif|tiff|png}' 1200 $aip
-        echo "generating 300px images for all .jpg..."
-        smartresize '*.jpg' 300 $aip
-        echo "generating 300px images for all .jpeg..."
-        smartresize '*.jpeg' 300 $aip
-        echo "generating 300px images for all .gif..."
-        smartresize '*.gif' 300 $aip
-        echo "generating 300px images for all .tiff..."
-        smartresize '*.tiff' 300 $aip
-        echo "generating 300px images for all .png..."
-        smartresize '*.png' 300 $aip
-        echo "generating 600px images for all .jpg..."
+#        # echo "generating 300px images for all .jpg..."
+#        smartresize '*.jpg' 300 $aip
+#        # echo "generating 300px images for all .jpeg..."
+#        smartresize '*.jpeg' 300 $aip
+#        # echo "generating 300px images for all .gif..."
+#        smartresize '*.gif' 300 $aip
+#        # echo "generating 300px images for all .tiff..."
+#        smartresize '*.tiff' 300 $aip
+#        # echo "generating 300px images for all .png..."
+#        smartresize '*.png' 300 $aip
+        # echo "generating 600px images for all .jpg..."
         smartresize '*.jpg' 600 $aip
-        echo "generating 600px images for all .jpeg..."
+        # echo "generating 600px images for all .jpeg..."
         smartresize '*.jpeg' 600 $aip
-        echo "generating 600px images for all .gif..."
+        # echo "generating 600px images for all .gif..."
         smartresize '*.gif' 600 $aip
-        echo "generating 600px images for all .tiff..."
+        # echo "generating 600px images for all .tiff..."
         smartresize '*.tiff' 600 $aip
-        echo "generating 600px images for all .png..."
+        # echo "generating 600px images for all .png..."
         smartresize '*.png' 600 $aip
-        echo "generating 1200px images for all .jpg..."
-        smartresize '*.jpg' 1200 $aip
-        echo "generating 1200px images for all .jpeg..."
-        smartresize '*.jpeg' 1200 $aip
-        echo "generating 1200px images for all .gif..."
-        smartresize '*.gif' 1200 $aip
-        echo "generating 1200px images for all .tiff..."
-        smartresize '*.tiff' 1200 $aip
-        echo "generating 1200px images for all .png..."
-        smartresize '*.png' 1200 $aip      
+#        # echo "generating 1200px images for all .jpg..."
+#        smartresize '*.jpg' 1200 $aip
+#        # echo "generating 1200px images for all .jpeg..."
+#        smartresize '*.jpeg' 1200 $aip
+#        # echo "generating 1200px images for all .gif..."
+#        smartresize '*.gif' 1200 $aip
+#        # echo "generating 1200px images for all .tiff..."
+#        smartresize '*.tiff' 1200 $aip
+#        # echo "generating 1200px images for all .png..."
+#        smartresize '*.png' 1200 $aip      
    done
     # smartresize2 '*.{jpg|jpeg|gif|tiff|png}' 600 $imgbase
-    echo "done"
+    echo "done converting"
+    # echo "_optimize: $_optimize"
+    if [ "$_optimize" != "true" ]; then
+        exit 0
+    fi
+fi
+
+log '$_optimize: '$_optimize
+if [ "$_optimize" = "true" ]; then
+    cd $imgbase
+    image_optim -r --no-pngout .
+    echo "done optimizing"
     exit 0
 fi
 
 
-inotifywait -m /home/ubuntu/website/docroot -e create -e modify -e delete -e moved_to -e moved_from |
-    while read path action file; do       
-#        if [[ "$last_processed" != $path$file ]]; then
-            echo "current directory: [$(pwd)]"
-            echo "'$action' -> ['$path''$file']"
-            image_path=$(get_responsive_image_path $path)
-            echo "image path: "$image_path
-            is_img=$(is_img_ext $file)
-            echo "is img: $is_img"
-            if [ "$is_img" ]; then
-
-                # do something with the file
-                if [ "$action" == "MODIFY" ] || [ "$action" == "MOVED_TO" ]; then
-                    echo "image path before modify: "$image_path
-                    remake_responsive_image $path $file $(echo $image_path) #$image_path
-                elif [ "$action" == "CREATE" ]; then
-                    add_responsive_image $path $file $image_path
-                elif [ "$action" == "DELETE" ] || [ "$action" == "MOVED_FROM" ]; then
-                    echo "image path before remove: "$image_path
-                    remove_responsive_image $path $file $(echo $image_path)
-                fi
-#                last_processed=$path$file
-            fi
-#        fi
-    done
+#inotifywait -m /home/ubuntu/website/docroot -e create -e modify -e delete -e moved_to -e moved_from |
+#    while read path action file; do       
+##        if [[ "$last_processed" != $path$file ]]; then
+#            echo "current directory: [$(pwd)]"
+#            echo "'$action' -> ['$path''$file']"
+#            image_path=$(get_responsive_image_path $path)
+#            echo "image path: "$image_path
+#            is_img=$(is_img_ext $file)
+#            echo "is img: $is_img"
+#            if [ "$is_img" ]; then
+#
+#                # do something with the file
+#                if [ "$action" == "MODIFY" ] || [ "$action" == "MOVED_TO" ]; then
+#                    echo "image path before modify: "$image_path
+#                    remake_responsive_image $path $file $(echo $image_path) #$image_path
+#                elif [ "$action" == "CREATE" ]; then
+#                    add_responsive_image $path $file $image_path
+#                elif [ "$action" == "DELETE" ] || [ "$action" == "MOVED_FROM" ]; then
+#                    echo "image path before remove: "$image_path
+#                    remove_responsive_image $path $file $(echo $image_path)
+#                fi
+##                last_processed=$path$file
+#            fi
+##        fi
+#    done

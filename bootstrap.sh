@@ -31,6 +31,8 @@ chmod 775 $WEBSITE_BASE/images
 mkdir -p $WEBSITE_BASE/docroot
 chown ubuntu:ubuntu $WEBSITE_BASE/docroot
 chmod 775 $WEBSITE_BASE/docroot
+mkdir -p /home/ubuntu/config
+chown ubuntu:ubuntu /home/ubuntu/config
 
 try apt-get update
 try apt-get install build-essential git nginx lynx imagemagick -y
@@ -38,9 +40,12 @@ try apt-get install build-essential git nginx lynx imagemagick -y
 X_ARCH="$(getconf LONG_BIT)"
 echo "building for arch " + $X_ARCH
 wget https://nodejs.org/dist/v7.5.0/node-v7.5.0-linux-x$X_ARCH.tar.xz
+tar -C /usr/local --strip-components 1 -xJf node-v7.5.0-linux-x$X_ARCH.tar.xz
 
 try apt-get install xz-utils inotify-tools -y
-tar -C /usr/local --strip-components 1 -xJf node-v7.5.0-linux-x$X_ARCH.tar.xz
+try apt-get install libjpeg-progs -y
+try apt-get install -y jhead optipng pngcrush jpegoptim advancecomp gifsicle pngquant
+try apt-get install -y ruby
 
 # id -u ubuntu &>/dev/null || useradd -d /vagrant/ubuntu -g www-data -m -G sudo ubuntu
 # NOTE: instead of changing ownership of the www-data files I am instead adding ubuntu
@@ -50,9 +55,15 @@ usermod -a -G _developer ubuntu
 
 # copy over the nginx file
 cp -f /vagrant/vm_files/default /etc/nginx/sites-available/default
+cp /vagrant/vm_files/image_optim.yml /home/ubuntu/config/image_optim.yml
+chown ubuntu:ubuntu /home/ubuntu/config/image_optim.yml
 
 # get the latest npm since current one fails on optional stuff for pm2
 npm install -g npm@latest
+npm install -g svgo
+
+# install the gem for image_optim image optimizer our cms will use
+gem install image_optim
 
 # install grunt globally for our image handling and other internal processing 
 #npm install -g grunt-cli
