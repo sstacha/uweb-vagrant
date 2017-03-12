@@ -87,6 +87,8 @@ if [ "$_current" = "true" ]; then
 	try mkdir -p $CURRENT_DIR$CURDIR		
 	cp -a $output_file $CURRENT_DIR$CURDIR/$output_file
 	echo archived $output_file to $CURRENT_DIR$CURDIR/$output_file
+    To restore all current files: sudo cp -pR $ARCHIVE_CURRENT/* /
+    To restore a single file replace * and the destination with the path and filename for the file
 fi
 
 # try to cleanup lots of files...

@@ -19,6 +19,7 @@ fi
 # create shortcuts for base dirs and make sure base directories are created
 export SERVER_HOME=$HOME/server
 export WEBSITE_HOME=$SERVER_HOME/website
+export ARCHIVE_CURRENT=$SERVER_HOME/archive/current
 export VAGRANT_HOME=/vagrant
 mkdir -p $VAGRANT_HOME/scripts
 mkdir -p $SERVER_HOME/scripts
