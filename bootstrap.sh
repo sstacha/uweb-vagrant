@@ -110,9 +110,9 @@ npm install -g svgo
 gem install image_optim
 
 # install django required files or a base install
-if [ -f "$VAGRANT_HOME/requirements.txt" ]; then
+if [ -f "$WEBSITE_HOME/requirements.txt" ]; then
     echo "requirements.txt exists; installing or re-installing modules from it..."
-    pip install -r $VAGRANT_HOME/requirements.txt
+    pip install -r $WEBSITE_HOME/requirements.txt
 else
     echo "requirements.txt does not exist; installing base django modules..."
     cd $WEBSITE_HOME
