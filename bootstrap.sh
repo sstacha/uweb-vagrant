@@ -58,15 +58,15 @@ chmod 775 $WEBSITE_HOME/docroot
 mkdir -p $SERVER_HOME/config
 chown ubuntu:ubuntu $SERVER_HOME/config
 # set up the archive directories for the archive script
-mkdir -p $WEBSITE_HOME/archive
-chown ubuntu:ubuntu $WEBSITE_HOME/archive
-chmod 775 $WEBSITE_HOME/archive
-mkdir -p $WEBSITE_HOME/archive/dated
-chown ubuntu:ubuntu $WEBSITE_HOME/archive/dated
-chmod 775 $WEBSITE_HOME/archive/dated
-mkdir -p $WEBSITE_HOME/archive/current
-chown ubuntu:ubuntu $WEBSITE_HOME/archive/current
-chmod 775 $WEBSITE_HOME/archive/current
+mkdir -p $SERVER_HOME/archive
+chown ubuntu:ubuntu $SERVER_HOME/archive
+chmod 775 $SERVER_HOME/archive
+mkdir -p $SERVER_HOME/archive/dated
+chown ubuntu:ubuntu $SERVER_HOME/archive/dated
+chmod 775 $SERVER_HOME/archive/dated
+mkdir -p $SERVER_HOME/archive/current
+chown ubuntu:ubuntu $SERVER_HOME/archive/current
+chmod 775 $SERVER_HOME/archive/current
 
 # make sure we are dealing with the latest stuff
 try apt-get update
@@ -115,7 +115,7 @@ if [ -f "$VAGRANT_HOME/requirements.txt" ]; then
     pip install -r $VAGRANT_HOME/requirements.txt
 else
     echo "requirements.txt does not exist; installing base django modules..."
-    cd $WEBSITE_BASE
+    cd $WEBSITE_HOME
     if [ -f "manage.py" ]; then
         echo "manage.py already exists: skipping project install..."
     else
@@ -144,9 +144,9 @@ fi
 #npm install -g grunt-cli
 
 # change to our project directory containing the package.json file and make sure all dependencies (grunt among others) are installed locally to project
-#cd $VAGRANT_BASE/uweb
+#cd $VAGRANT_HOME/uweb
 #npm install --no-bin-links
-#cd $WEBSITE_BASE
+#cd $WEBSITE_HOME
 
 # copy over the service files to the systemd directory for starting our uweb application and any other services
 # uweb.service: uweb django application at boot
