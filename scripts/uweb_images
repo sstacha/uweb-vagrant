@@ -21,10 +21,10 @@ show_help() {
 # Initialize our own variables:
 maxsize=1024
 defaultsize=600
-# docbase='/home/ubuntu/website/docroot'
-# imgbase='/home/ubuntu/website/images'
-docbase='/vagrant/test_images'
-imgbase='/vagrant/test_optimized'
+docbase='/home/ubuntu/server/website/docroot'
+imgbase='/home/ubuntu/server/website/images'
+# docbase='/vagrant/test_images'
+# imgbase='/vagrant/test_optimized'
 
 # parse all options using getargs...
 # A POSIX variable
@@ -266,7 +266,7 @@ if [ "$_optimize" = "true" ]; then
 fi
 
 
-#inotifywait -m /home/ubuntu/website/docroot -e create -e modify -e delete -e moved_to -e moved_from |
+#inotifywait -m /home/ubuntu/website/server/docroot -e create -e modify -e delete -e moved_to -e moved_from |
 #    while read path action file; do       
 ##        if [[ "$last_processed" != $path$file ]]; then
 #            echo "current directory: [$(pwd)]"

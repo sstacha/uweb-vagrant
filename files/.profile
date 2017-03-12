@@ -8,7 +8,7 @@
 # for ssh logins, install and configure the libpam-umask package.
 #umask 022
 
-# if running bash
+# if running bash load the global resource file from our home directory
 if [ -n "$BASH_VERSION" ]; then
     # include .bashrc if it exists
     if [ -f "$HOME/.bashrc" ]; then
@@ -17,14 +17,15 @@ if [ -n "$BASH_VERSION" ]; then
 fi
 
 # create shortcuts for base dirs and make sure base directories are created
-export WEBSITE_BASE=/home/ubuntu/website
-export VAGRANT_BASE=/vagrant
-mkdir -p $VAGRANT_BASE/vm_scripts
-mkdir -p $HOME/vm_scripts
+export SERVER_HOME=$HOME/server
+export WEBSITE_HOME=$SERVER_HOME/website
+export VAGRANT_HOME=/vagrant
+mkdir -p $VAGRANT_HOME/scripts
+mkdir -p $SERVER_HOME/scripts
 
 # set PATH so it includes user's private bin directories
 PATH="$HOME/bin:$HOME/.local/bin:$PATH"
 # set our path so we can run scripts from inside the vm
-PATH=$PATH:$HOME/vm_scripts:$VAGRANT_BASE/vm_scripts
+PATH=$PATH:$SERVER_HOME/scripts:$VAGRANT_HOME/scripts
 
-cd $WEBSITE_BASE
+cd $WEBSITE_HOME

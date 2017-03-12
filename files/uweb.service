@@ -3,14 +3,14 @@ Description=UberWeb CMS
 After=syslog.target network.target
 
 [Service]
-ExecStart=/usr/local/bin/node /vagrant/vm_files/helloworld.js
+ExecStart=/usr/bin/python3 /home/ubuntu/server/website/manage.py runserver 0.0.0.0:8000
 # Type=forking
-# WorkingDirectory=/vagrant/uweb
+WorkingDirectory=/home/ubuntu/server/website
 Restart=always
 StandardOutput=syslog
 StandardError=syslog
 SyslogIdentifier=uweb
-User=www-data
+User=ubuntu
 Group=_developer
 Environment=NODE_ENV=dev
 

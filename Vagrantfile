@@ -1,10 +1,10 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-required_plugins = %w( vagrant-fsnotify )
-required_plugins.each do |plugin|
-    exec "vagrant plugin install #{plugin};vagrant #{ARGV.join(" ")}" unless Vagrant.has_plugin? plugin || ARGV[0] == 'plugin'
-end
+#required_plugins = %w( vagrant-fsnotify )
+#required_plugins.each do |plugin|
+#    exec "vagrant plugin install #{plugin};vagrant #{ARGV.join(" ")}" unless Vagrant.has_plugin? plugin || ARGV[0] == 'plugin'
+#end
 
 # in case something goes wrong with the auto install lets check
 
@@ -44,13 +44,8 @@ Vagrant.configure("2") do |config|
   # the path on the host to the actual folder. The second argument is
   # the path on the guest to mount the folder. And the optional third
   # argument is a set of non-required options.
-  # config.vm.synced_folder "../website/", "/home/ubuntu/website", create: true
-  # config.vm.synced_folder "../vm_scripts/", "/home/ubuntu/vm_scripts", create: true
-  config.vm.synced_folder "../docroot/", "/home/ubuntu/website/docroot", create: true, user: "ubuntu", group: "www-data", fsnotify: true
-  config.vm.synced_folder "../vm_current_files", "/home/ubuntu/current_files", create: true
-  config.vm.synced_folder "../vm_archived_files", "/home/ubuntu/archived_files", create: true
+  config.vm.synced_folder "../server/", "/home/ubuntu/server", create: true, user: "ubuntu", group: "www-data"
   #config.vm.synced_folder "/var/ubuntu/website/logs", "../logs"
-#  config.vm.synced_folder "../uploads/", "/home/ubuntu/website/uploads", create: true, user: "ubuntu", group: "www-data", type: "rsync", rsync__exclude: ".git/"
 
   # Provider-specific configuration so you can fine-tune various
   # backing providers for Vagrant. These expose provider-specific options.

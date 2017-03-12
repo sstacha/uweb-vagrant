@@ -34,7 +34,7 @@ server {
 	# include snippets/snakeoil.conf;
 
 	# root /var/www/html;
-    root /home/ubuntu/website;
+    root /home/ubuntu/server/website;
 
 	# Add index.php to the list if you are using PHP
 	index index.html index.htm index.nginx-debian.html;
@@ -44,7 +44,9 @@ server {
 	location / {
         index index.html index.htm index.nginx-debian.html;
 		# First attempt to serve request as file, then
-		# as directory, then fall back to displaying a 404.
+		# as directory, then fall back to sending to django.
+        # NOTE: this means django handles 404's
+        # index index.html index.htm;
 		try_files /cache$uri
                     /cache/$uri
                     /cache/$uri/index.html 
@@ -52,9 +54,15 @@ server {
                     /images/$uri
                     /docroot$uri 
                     /docroot/$uri
-                    /docroot/$uri/index.html =404;
+                    /docroot/$uri/index.html @django;
+                    
 	}
 
+    location @django {
+        include         uwsgi_params;
+        uwsgi_pass      unix:/run/uwsgi/website.sock;  
+    }
+    
 	# pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
 	#
 	#location ~ \.php$ {

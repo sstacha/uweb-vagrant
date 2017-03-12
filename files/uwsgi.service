@@ -1,0 +1,20 @@
+[Unit]
+Description=uWSGI Emperor service
+After=syslog.target
+
+[Service]
+# ExecStartPre=/bin/bash -c 'mkdir -p /run/uwsgi; chown ubuntu:www-data /run/uwsgi'
+ExecStart=/usr/local/bin/uwsgi --emperor /etc/uwsgi/sites
+# WorkingDirectory=/home/ubuntu/server/website
+Restart=always
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=uwsgi
+User=ubuntu
+Group=www-data
+KillSignal=SIGQUIT
+Type=notify
+NotifyAccess=all
+
+[Install]
+WantedBy=default.target
