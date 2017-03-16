@@ -10,18 +10,23 @@ log () {
 }
 
 show_help() {
-    echo "usage: ./uweb_images.sh [-h][-a][-v][-c][-o]"
+    echo "usage: ./uweb_images.sh [-h][-a][-v][-c][-o][-f][-d][-w][-i]"
     echo "     -h: show usage help"
-    echo "     -a: all (runs both convert and optimize)"
+    echo "     -v: show verbose logging"
+    echo "     -a: all (runs both convert and optimize) on all images"
     echo "     -c: convert all images and crop any >1028 width"
-    echo "     -o: optimize images with compression (uses image_optim)"
-    echo " no option: start in watch mode for folder changes"
+    echo "     -o: optimize all images with compression (uses image_optim)"
+    echo "     -f: runs optimizations on one file from within a directory instead of all files in all directories"
+    echo "     -d: recursively runs optimizations on only files different between the directories instead of all files in all directories"
+    echo "     -w: use the path given as an override for the website directory where images are stored (the source)"
+    echo "     -i: use the path given as an override for the images directory where optimized images are stored (the destination)"
+    # echo " no option: start in watch mode for folder changes"
 }
 
 # Initialize our own variables:
 maxsize=1024
 defaultsize=600
-docbase='/home/ubuntu/server/website/docroot'
+docbase='/home/ubuntu/server/website/docroot/templates/docroot'
 imgbase='/home/ubuntu/server/website/images'
 # docbase='/vagrant/test_images'
 # imgbase='/vagrant/test_optimized'
@@ -30,7 +35,7 @@ imgbase='/home/ubuntu/server/website/images'
 # A POSIX variable
 OPTIND=1         # Reset in case getopts has been used previously in the shell.
 
-while getopts "h?vacorf:" opt; do
+while getopts "h?vacof:dw:i:" opt; do
     case "$opt" in
     h|\?)
         show_help
@@ -44,9 +49,13 @@ while getopts "h?vacorf:" opt; do
         ;;
     o)  _optimize=true
         ;;
-    r)  _regex=$OPTARG
-        ;;
     f)  _file=$OPTARG
+        ;;
+    d)  _diff=true
+        ;;
+    w)  docbase=$OPTARG
+        ;;
+    i)  imgbase=$OPTARG
         ;;
     esac
 done
@@ -193,6 +202,72 @@ is_img_ext() {
     fi
 }
 
+echo 'docbase: '$docbase
+echo 'imgbase: '$imgbase
+echo ' '
+log '$_file: '$_file
+if [ -z $_file ]; then
+	log "no file given; skipping..."
+else
+    echo "optimizing [$_file]..."
+    # the only difference is that we get the cwd and apply to the filename given
+    # get the current directory for use
+    curdir=$(pwd)
+    # find the docroot path and then get whats left
+    log "curdir: $curdir"
+    log `echo $curdir | sed -r "s $docbase  g"`
+    log "$(echo $curdir | sed -r "s $docbase  g")"
+    log "docbase: $docbase"    
+    relpath="$(echo $curdir | sed -r "s $docbase  g")"
+    log "relpath: $relpath"
+    # take this and append to the images directory
+    newpath=$imgbase$relpath
+    log "newpath: $newpath"
+    
+    # execute the image magick and optimizer on the file
+    smartresize "$_file" 600 $newpath
+    image_optim -r --no-pngout $newpath/$_file
+    echo "done"
+    exit 0
+fi
+
+log '$_diff: '$_diff
+if [ "$_diff" = "true" ]; then
+    log 'deleting all images not in the docroot directory...'
+    delfiles=$(diff -r $docbase $imgbase | grep $imgbase | grep '^Only' | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$' | awk '{print $3$4}')
+    echo "files only in imgbase:"
+    for df in $delfiles; do
+        dtrim=${df%:*}  # retain the part before the colon
+        ftrim=${df##*:} # retain the part after the last colon
+        echo "     deleting [$dtrim/$ftrim]"
+        rm $dtrim/$ftrim
+    done
+	log 'running conversion and optimization on all images in the image directory...'
+    newfiles=$(diff -r $docbase $imgbase | grep $docbase | grep '^Only' | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$' | awk '{print $3$4}')
+    echo "files only in docbase:"
+    for nf in $newfiles; do
+        echo "     optimizing [$nf]"
+        # we need to trim our directory before sending
+        dtrim=${nf%:*}  # retain the part before the colon
+        ftrim=${nf##*:} # retain the part after the last colon
+        log "dtrim: $dtrim"
+        log "ftrim: $ftrim"
+        relpath="$(echo $dtrim | sed -r "s $docbase  g")"
+        newpath=$imgbase$relpath
+        log "relpath: $relpath"
+        log "newpath: $newpath"
+        cd $dtrim
+        mkdir -p $dtrim
+        # execute the image magick and optimizer on the file
+        smartresize "$ftrim" 600 $newpath
+        image_optim -r --no-pngout $newpath/$ftrim
+
+    done
+    echo "done"
+    exit 0
+fi
+
+
 log '$_all: '$_all
 log '$_convert: '$_convert
 if [ "$_all" = "true" ]; then
@@ -264,30 +339,3 @@ if [ "$_optimize" = "true" ]; then
     echo "done optimizing"
     exit 0
 fi
-
-
-#inotifywait -m /home/ubuntu/website/server/docroot -e create -e modify -e delete -e moved_to -e moved_from |
-#    while read path action file; do       
-##        if [[ "$last_processed" != $path$file ]]; then
-#            echo "current directory: [$(pwd)]"
-#            echo "'$action' -> ['$path''$file']"
-#            image_path=$(get_responsive_image_path $path)
-#            echo "image path: "$image_path
-#            is_img=$(is_img_ext $file)
-#            echo "is img: $is_img"
-#            if [ "$is_img" ]; then
-#
-#                # do something with the file
-#                if [ "$action" == "MODIFY" ] || [ "$action" == "MOVED_TO" ]; then
-#                    echo "image path before modify: "$image_path
-#                    remake_responsive_image $path $file $(echo $image_path) #$image_path
-#                elif [ "$action" == "CREATE" ]; then
-#                    add_responsive_image $path $file $image_path
-#                elif [ "$action" == "DELETE" ] || [ "$action" == "MOVED_FROM" ]; then
-#                    echo "image path before remove: "$image_path
-#                    remove_responsive_image $path $file $(echo $image_path)
-#                fi
-##                last_processed=$path$file
-#            fi
-##        fi
-#    done
