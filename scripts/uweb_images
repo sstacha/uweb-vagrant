@@ -2,7 +2,7 @@
 # script to optimize images
 
 log_verbose=false
-log () {
+debug () {
 		if [ "$log_verbose" = "true" ] ; then
         	# log all messages
         	echo $1;
@@ -26,10 +26,10 @@ show_help() {
 # Initialize our own variables:
 maxsize=1024
 defaultsize=600
-docbase='/home/ubuntu/server/website/docroot/templates/docroot'
-imgbase='/home/ubuntu/server/website/images'
-# docbase='/vagrant/test_images'
-# imgbase='/vagrant/test_optimized'
+# docbase='/home/ubuntu/server/website/docroot/templates/docroot'
+# imgbase='/home/ubuntu/server/website/images'
+docbase='/vagrant/test_images'
+imgbase='/vagrant/test_optimized'
 
 # parse all options using getargs...
 # A POSIX variable
@@ -64,7 +64,17 @@ shift $((OPTIND-1))
 
 [ "$1" = "--" ] && shift
 
-log "verbose=$verbose, current=$current output_file='$output_file', Leftovers: $@"
+debug "options: "
+debug "all:$_all"
+debug "convert:$_convert"
+debug "optimize:$_optimize"
+debug "file:$_filee"
+debug "diff:$_diff"
+debug "docbase:$_docbase"
+debug "imgbase:$_imgbase"
+debug "argument: $@"
+debug ""
+
 if [ -z $output_file ]; then
 	output_file=$@
 fi
@@ -72,21 +82,21 @@ fi
 get_responsive_image_suffix() {
     pattern=$1
     size=$2
-    log "size: $size"
+    debug "size: $size"
     ext=$(expr match "$1" '.*\(\.[a-Z]*\)')
-    log "ext: $ext"
-    log "pattern: $pattern"
+    debug "ext: $ext"
+    debug "pattern: $pattern"
     extlen=${#ext}
-    log "extlen: $extlen"
+    debug "extlen: $extlen"
     filelen=${#pattern}
-    log "filelen: $filelen"
+    debug "filelen: $filelen"
     poslen=$(expr $filelen - $extlen)
-    log "poslen: $poslen"
+    debug "poslen: $poslen"
     if [[ "$size" ]] && [[ "$size" != $defaultsize ]]; then
-        log "returning: $size${1:$poslen}"
+        debug "returning: $size${1:$poslen}"
         echo $size"${1:$poslen}"
     else
-        log "returning: ${1:$poslen+1}"
+        debug "returning: ${1:$poslen+1}"
         echo "${1:$poslen+1}"
     fi
 }
@@ -205,24 +215,24 @@ is_img_ext() {
 echo 'docbase: '$docbase
 echo 'imgbase: '$imgbase
 echo ' '
-log '$_file: '$_file
+debug '$_file: '$_file
 if [ -z $_file ]; then
-	log "no file given; skipping..."
+	debug "no file given; skipping..."
 else
     echo "optimizing [$_file]..."
     # the only difference is that we get the cwd and apply to the filename given
     # get the current directory for use
     curdir=$(pwd)
     # find the docroot path and then get whats left
-    log "curdir: $curdir"
-    log `echo $curdir | sed -r "s $docbase  g"`
-    log "$(echo $curdir | sed -r "s $docbase  g")"
-    log "docbase: $docbase"    
+    debug "curdir: $curdir"
+    debug `echo $curdir | sed -r "s $docbase  g"`
+    debug "$(echo $curdir | sed -r "s $docbase  g")"
+    debug "docbase: $docbase"
     relpath="$(echo $curdir | sed -r "s $docbase  g")"
-    log "relpath: $relpath"
+    debug "relpath: $relpath"
     # take this and append to the images directory
     newpath=$imgbase$relpath
-    log "newpath: $newpath"
+    debug "newpath: $newpath"
     
     # execute the image magick and optimizer on the file
     smartresize "$_file" 600 $newpath
@@ -231,9 +241,9 @@ else
     exit 0
 fi
 
-log '$_diff: '$_diff
+debug '$_diff: '$_diff
 if [ "$_diff" = "true" ]; then
-    log 'deleting all images not in the docroot directory...'
+    debug 'deleting all images not in the docroot directory...'
     delfiles=$(diff -r $docbase $imgbase | grep $imgbase | grep '^Only' | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$' | awk '{print $3$4}')
     echo "files only in imgbase:"
     for df in $delfiles; do
@@ -242,7 +252,7 @@ if [ "$_diff" = "true" ]; then
         echo "     deleting [$dtrim/$ftrim]"
         rm $dtrim/$ftrim
     done
-	log 'running conversion and optimization on all images in the image directory...'
+	debug 'running conversion and optimization on all images in the image directory...'
     newfiles=$(diff -r $docbase $imgbase | grep $docbase | grep '^Only' | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$' | awk '{print $3$4}')
     echo "files only in docbase:"
     for nf in $newfiles; do
@@ -250,12 +260,12 @@ if [ "$_diff" = "true" ]; then
         # we need to trim our directory before sending
         dtrim=${nf%:*}  # retain the part before the colon
         ftrim=${nf##*:} # retain the part after the last colon
-        log "dtrim: $dtrim"
-        log "ftrim: $ftrim"
+        debug "dtrim: $dtrim"
+        debug "ftrim: $ftrim"
         relpath="$(echo $dtrim | sed -r "s $docbase  g")"
         newpath=$imgbase$relpath
-        log "relpath: $relpath"
-        log "newpath: $newpath"
+        debug "relpath: $relpath"
+        debug "newpath: $newpath"
         cd $dtrim
         mkdir -p $dtrim
         # execute the image magick and optimizer on the file
@@ -268,15 +278,15 @@ if [ "$_diff" = "true" ]; then
 fi
 
 
-log '$_all: '$_all
-log '$_convert: '$_convert
+debug '$_all: '$_all
+debug '$_convert: '$_convert
 if [ "$_all" = "true" ]; then
     _convert="true"
     _optimize="true"
-	log 'running conversion and optimization on the image directory...'
+	debug 'running conversion and optimization on the image directory...'
 fi
 if [ "$_convert" = "true" ]; then
-	log 'wiping and converting the image directory...'
+	debug 'wiping and converting the image directory...'
     cd $imgbase
 	rm -rf *	
 	echo "images deleted.  recreating..."
@@ -332,7 +342,7 @@ if [ "$_convert" = "true" ]; then
     fi
 fi
 
-log '$_optimize: '$_optimize
+debug '$_optimize: '$_optimize
 if [ "$_optimize" = "true" ]; then
     cd $imgbase
     image_optim -r --no-pngout .

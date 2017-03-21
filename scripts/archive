@@ -9,7 +9,7 @@ die() { yell "$*"; exit 111; }
 try() { "$@" || die "cannot $*"; }
 
 # Initialize our constants:
-MAKE_CHANGES=false
+MAKE_CHANGES=true
 IGNORE_FILES=".DS_Store .git"
 # Initialize our own variables:
 _opt_verbose=false
@@ -56,13 +56,6 @@ get_absolute_file() {
         echo "$_gaf_curdir/$_opt_file"
     fi
 }
-
-# used to get the non-archived file version if someone gives a restore for an archived file or directory
-get_pwd_file() {
-    tfile="$(get_absolute_file)"
-    echo "$(remove_archive_directory $tfile)"
-}
-
 # similar to get_pwd_file but instead of using the current directory use what is passed
 remove_archive_directory() {
     # if it is the dated or current archive directories strip it off
@@ -85,6 +78,108 @@ strip_date_ext() {
     # if the directory contains $ARCHIVE_DATED then strop the .date part off
     echo ${1%.*}
 }
+create_dated_archive() {
+    _fd="$1"
+    debug "fd: $_fd"
+    _dtf="$(get_date_ext)"
+    debug "dtf: $_dtf"
+    _d=$(dirname "${_fd}")
+    debug "d: $_d"
+    _f=$(basename "${_fd}")
+    debug "f: $_f"
+
+    if echo $IGNORE_FILES | grep -w $_f > /dev/null; then
+        debug "$_f was in the ignore list; not archiving..."
+    else
+        debug "attempting to date archive: $_fd"
+        if [[ "$MAKE_CHANGES" == "true" ]]; then
+            # before we make a copy lets make sure the directory exists so it doesn't error
+            if [[ ! -d $ARCHIVE_DATED$_d ]]; then
+                mkdir -p $ARCHIVE_DATED$_d
+            fi
+            try cp -p $_fd $ARCHIVE_DATED$_fd.$_dtf
+        fi
+        echo "archived [$ARCHIVE_DATED$_fd.$_dtf]"
+    fi
+}
+create_current_archive() {
+    _fd="$1"
+    debug "fd: $_fd"
+    _d=$(dirname "${_fd}")
+    debug "d: $_d"
+    _f=$(basename "${_fd}")
+    debug "f: $_f"
+
+    if echo $IGNORE_FILES | grep -w $_f > /dev/null; then
+        debug "$_f was in the ignore list; not archiving to current..."
+    else
+        if [ "$_opt_current" = "true" ]; then
+            debug "opt_current is set; archiving to current folder as well"
+            if [[ "$MAKE_CHANGES" == "true" ]]; then
+                # before we make a copy lets make sure the directory exists so it doesn't error
+                if [[ ! -d $ARCHIVE_CURRENT$_d ]]; then
+                    mkdir -p $ARCHIVE_CURRENT$_d
+                fi
+                try cp -p $fd $ARCHIVE_CURRENT$fd
+            fi
+            echo "archived [$ARCHIVE_CURRENT$fd]"
+        fi
+    fi
+}
+restore_current_archive_file() {
+    _fd="$1"
+    _d=$(dirname "${_fd}")
+    debug "d: $_d"
+    _f=$(basename "${_fd}")
+    debug "f: $_f"
+
+    if echo $IGNORE_FILES | grep -w $_f > /dev/null; then
+        debug "$_f was in the ignore list; not archiving [$_fd]..."
+    else
+        if [[ -f $_fd ]]; then
+            debug "[$_fd] exists; make a dated archive"
+            create_dated_archive "$_fd"
+        fi
+        if [[ "$MAKE_CHANGES" == "true" ]]; then
+            # before we make a copy lets make sure the directory exists so it doesn't error
+            if [[ ! -d $_d ]]; then
+                mkdir -p $_d
+            fi
+            try cp -p $ARCHIVE_CURRENT$_fd $_fd
+        fi
+        echo "restored [$_fd] from [$ARCHIVE_CURRENT$_fd]"
+    fi
+}
+restore_dated_archive_file() {
+    _afd="$1"
+    debug "afd: $_afd"
+    _fd=$(remove_archive_directory $_afd)
+    debug "fd: $_fd"
+    _d=$(dirname "${_fd}")
+    debug "d: $_d"
+    _f=$(basename "${_fd}")
+    debug "f: $_f"
+    _fdne=$(strip_date_ext "${_fd}")
+    debug "fdne: $_fdne"
+
+    if echo $IGNORE_FILES | grep -w $_f > /dev/null; then
+        debug "$_f was in the ignore list; skipping..."
+    else
+        if [[ -f $_fd ]]; then
+            debug "[$_fd] exists; make a dated archive"
+            create_dated_archive "$_fdne"
+        fi
+        # now restore the file to the directory
+        if [[ "$MAKE_CHANGES" == "true" ]]; then
+            # before we make a copy lets make sure the directory exists so it doesn't error
+            if [[ ! -d $_d ]]; then
+                mkdir -p $_d
+            fi
+            try cp -p $_afd $_fdne
+        fi
+        echo "restored [$_fdne] from [$_afd]"
+    fi
+}
 
 _archive() {
     debug "called archive function"
@@ -96,7 +191,7 @@ _archive() {
         echo 'Are you sure you want to archive all the files in this directory? [y/N]'
         read _user_answer
         debug "user answer: [$_user_answer]"
-
+        echo ""
         if [[ "$_user_answer" != "y" && "$_user_answer" != "Y" ]]; then
             echo "done"
             exit 0
@@ -105,44 +200,19 @@ _archive() {
         # looping through all files in the passed folder and archiving them
         # so it turns out when you use the full path the full path is included no need to append
         for fd in $(find $_full_file* -prune -type f); do
-            dtf="$(get_date_ext)"
-            debug "attempting to date archive: $fd"
-            if [[ "$MAKE_CHANGES" == "true" ]]; then
-                try cp -ap $fd $ARCHIVE_DATED$fd.$dtf
-            fi
-            echo "archived [$ARCHIVE_DATED$fd.$dtf]"
-
-            if [ "$_opt_current" = "true" ]; then
-                debug "opt_current is set; archiving to current folder as well"
-                if [[ "$MAKE_CHANGES" == "true" ]]; then
-                    try cp -ap $fd $ARCHIVE_CURRENT$fd
-                fi
-                echo "archived [$ARCHIVE_CURRENT$fd]"
-            fi
+            create_dated_archive "$fd"
+            create_current_archive "$fd"
         done
 
     elif [[ -f "$_full_file" ]]; then
         fd=$_full_file
-        debug "saving [ $fd ]"
-        dtf="$(get_date_ext)"
-        debug "attempting to date archive: $fd"
-        if [[ "$MAKE_CHANGES" == "true" ]]; then
-            try cp -ap $fd $ARCHIVE_DATED$fd.$dtf
-        fi
-        echo "archived [$ARCHIVE_DATED$fd.$dtf]"
-
-        if [ "$_opt_current" = "true" ]; then
-            debug "opt_current is set; archiving to current folder as well"
-            if [[ "$MAKE_CHANGES" == "true" ]]; then
-                try cp -ap $fd $ARCHIVE_CURRENT$fd
-            fi
-            echo "archived [$ARCHIVE_CURRENT$fd]"
-        fi
+        create_dated_archive "$fd"
+        create_current_archive "$fd"
     else
-        echo "[ $_full_file ] not found!"
+        debug "[ $_full_file ] not found!"
     fi
-
 }
+
 _restore() {
     debug "called restore function"
     # NOTE: we check for exactness in dated folder first then current; make function?
@@ -150,7 +220,7 @@ _restore() {
     debug ""
     debug "test: restore dated file to location, dated dir to location, current file to location current dir to location"
     # if the file argument is blank then we want to prompt and restore everything in the directory as long as we have the current working directory in the archive; do a makedir -p to ensure each subdirectory exists first
-    if [[ "$_opt_file" = "" ]]; then
+    if [[ "$_opt_file" = "" && "$(echo $_full_file | grep $ARCHIVE_DIR)" == "" ]]; then
         # ask if they want to really do this since this will be pretty destructive
         echo "You have requested to restore all files in directory [$_full_file] from your current archive folder.  This will restore every file found in the current archive as long as it exists.  It will also create a dated archive of each file first if you need it again."
         echo "NOTE: this is not recursive; it will only apply to files in this direcotry not any subdirectories"
@@ -158,263 +228,124 @@ _restore() {
         echo 'Are you sure you want to replace all the files in this directory? [y/N]'
         read _user_answer
         debug "user answer: [$_user_answer]"
-
+        echo ""
         if [[ "$_user_answer" != "y" && "$_user_answer" != "Y" ]]; then
             echo "done"
             exit 0
         fi
 
-        # loop through each file and send it to its location preserving permissions
-        debug "date archiving the files in cwd for the folder passed if it exists..."
+        # loop through each file and send it to its location preserving permissions provided we have something saved off
         for fd in $(find $_full_file* -prune -type f); do
-            debug "attempting to date archive: $fd"
-            f=$(basename "${fd}")
-            debug "f: $f"
-            dtf="$(get_date_ext)"
-
-            if echo $IGNORE_FILES | grep -w $f > /dev/null; then
-                debug "$f was in the ignore list; skipping..."
+            if [[ -f $ARCHIVE_CURRENT$fd ]]; then
+                restore_current_archive_file "$fd"
             else
-
-                if [[ -f $ARCHIVE_CURRENT$fd ]]; then
-                    # make an archive of the existing file
-                    debug "archiving [$ARCHIVE_DATED$fd.$dtf]"
-                    if [[ "$MAKE_CHANGES" == "true" ]]; then
-                        try cp -ap $fd $ARCHIVE_DATED$fd.$dtf
-                    fi
-                    echo "archived [$ARCHIVE_DATED$fd.$dtf]"
-                    # restore the file if it exists in the current archive folder
-
-                    if [[ "$MAKE_CHANGES" == "true" ]]; then
-                        try cp -ap $ARCHIVE_CURRENT$fd $fd
-                    fi
-                    echo "restored [$fd] from [$ARCHIVE_CURRENT$fd]"
-                else
-                    echo "[$ARCHIVE_CURRENT$fd] not found!"
-                fi
+                echo "[$ARCHIVE_CURRENT$fd] not found!"
             fi
         done
 
-    else
-        # if the file argument is the current archive directory then prompt and replace all files in the archive out to their respective locations; do a makedir -p to make sure it exists first
-        if [[ "$_opt_file" == "$ARCHIVE_CURRENT" ]]; then
-            # ask if they want to really do this since this will be pretty destructive
-            echo "You have requested to restore all files currently in your current archive directory out to their repective locations.  This will restore every file found in the current archive overwriting anything that is currently there.  It will also create a dated archive of each file found first in case you need it later."
-            echo "NOTE: this is recursive; it will apply to every file and direcotry/subdirectory in the current archive folder"
-            echo " "
-            echo 'Are you sure you want to replace or overwrite all the files in your current archive to their respective locations? [y/N]'
-            read _user_answer
-            debug "user answer: [$_user_answer]"
+    # if the file argument is the current archive directory then prompt and replace all files in the archive out to their respective locations; do a makedir -p to make sure it exists first
+    elif [[ "$_opt_file" == "$ARCHIVE_CURRENT" ]]; then
+        # ask if they want to really do this since this will be pretty destructive
+        echo "You have requested to restore all files currently in your current archive directory out to their repective locations.  This will restore every file found in the current archive overwriting anything that is currently there.  It will also create a dated archive of each file found first in case you need it later."
+        echo "NOTE: this is recursive; it will apply to every file and direcotry/subdirectory in the current archive folder"
+        echo " "
+        echo 'Are you sure you want to replace or overwrite all the files in your current archive to their respective locations? [y/N]'
+        read _user_answer
+        debug "user answer: [$_user_answer]"
+        echo ""
+        if [[ "$_user_answer" != "y" && "$_user_answer" != "Y" ]]; then
+            echo "done"
+            exit 0
+        fi
 
-            if [[ "$_user_answer" != "y" && "$_user_answer" != "Y" ]]; then
-                echo "done"
-                exit 0
-            fi
+        # loop through each file in the current directory and send it to its location preserving permissions
+        for afd in $(find $_full_file* -type f); do
+            debug "afd: $afd"
+            fd=$(remove_archive_directory $afd)
+            debug "fd: $fd"
+            restore_current_archive_file "$fd"
+        done
 
-            # loop through each file in the current directory and send it to its location preserving permissions
-            debug "date archiving the files in cwd for the folder passed if it exists..."
-            for afd in $(find $_full_file* -type f); do
-                debug "afd: $afd"
-                fd=$(remove_archive_directory $afd)
-                debug "fd: $fd"
-                d=$(dirname "${fd}")
-                debug "d: $d"
-                f=$(basename "${fd}")
-                debug "f: $f"
-                debug "attempting to date archive: $fd"
-                dtf="$(get_date_ext)"
-
-                if echo $IGNORE_FILES | grep -w $f > /dev/null; then
-                    debug "$f was in the ignore list; skipping..."
-                else
-                    if [[ -f $fd ]]; then
-                        debug "[$fd] exists nothing to do except archive"
-                        if [[ "$MAKE_CHANGES" == "true" ]]; then
-                            try cp -ap $fd $ARCHIVE_DATED$fd.$dtf
-                        fi
-                        echo "archived [$ARCHIVE_DATED$fd.$dtf]"
-                    else
-                        debug "[$fd] does not exist; make the directory so copy does not fail"
-                        if [[ "$MAKE_CHANGES" == "true" ]]; then
-                            try mkdir $d
-                        fi
-                        echo "[$fd] did not exist; nothing to archive"
-                    fi
-                    # now restore the file to the directory
-                    if [[ "$MAKE_CHANGES" == "true" ]]; then
-                        try cp -ap $afd $fd
-                    fi
-                    echo "restored [$fd] from [$afd]"
-                fi
-
-            done
-
-        # if the file argument is something inside the archive directory (equality already checked) then just restore that archived file or folder out to its location
-        elif [[ "$(echo $_full_file | grep $ARCHIVE_DIR)" != "" ]]; then
-            if [[ -d "$_full_file" ]]; then
+    # if the file argument is something inside the current archive directory (equality already checked) then just restore that archived file or folder out to its location
+    elif [[ "$(echo $_full_file | grep $ARCHIVE_DIR)" != "" ]]; then
+        if [[ -d "$_full_file" ]]; then
+            # do not allow restoring directories inside of the dated archive directory
+            if [[ "$(echo $_full_file | grep $ARCHIVE_DATED)" != "" ]]; then
+                echo "You have requested to restore ALL files from a dated archive directory.  This is most likely an error and can have unintended consequences.  Please try again providing only one of the backup dated files in that directory instead."
+                exit 1
+            else
                 # ask if they want to really do this
                 echo "You have requested to restore all files in directory [$_full_file] to [$(remove_archive_directory $_full_file)]"
                 echo 'Are you sure? [y/N]'
                 read _user_answer
                 debug "user answer: [$_user_answer]"
-
+                echo ""
                 if [[ "$_user_answer" != "y" && "$_user_answer" != "Y" ]]; then
                     echo " "
                     echo "done"
                     exit 0
                 fi
                 # loop through each file and send it to its location preserving permissions
-                debug "date archiving the files in cwd for the folder passed if it exists..."
                 for afd in $(find $_full_file* -type f); do
                     debug "afd: $afd"
                     fd=$(remove_archive_directory $afd)
                     debug "fd: $fd"
-                    d=$(dirname "${fd}")
-                    debug "d: $d"
-                    f=$(basename "${fd}")
-                    debug "f: $f"
-                    debug "attempting to date archive: $fd"
-                    dtf="$(get_date_ext)"
-                    fdne=$(strip_date_ext $fd)
-
-                    if echo $IGNORE_FILES | grep -w $f > /dev/null; then
-                        debug "$f was in the ignore list; skipping..."
-                    else
-                        if [[ -f $fd ]]; then
-                            debug "[$fd] exists nothing to do except archive"
-                            if [[ "$MAKE_CHANGES" == "true" ]]; then
-                                try cp -ap $fdne $ARCHIVE_DATED$fdne.$dtf
-                            fi
-                            echo "archived [$ARCHIVE_DATED$fdne.$dtf]"
-                        else
-                            debug "[$fdne] does not exist; make the directory so copy does not fail"
-                            if [[ "$MAKE_CHANGES" == "true" ]]; then
-                                try mkdir $d
-                            fi
-                            echo "[$fdne] did not exist; nothing to archive"
-                        fi
-                        # now restore the file to the directory
-                        if [[ "$MAKE_CHANGES" == "true" ]]; then
-                            try cp -ap $afd $fdne
-                        fi
-                        echo "restored [$fdne] from [$afd]"
-                    fi
+                    restore_current_archive_file "$fd"
                 done
+            fi
 
-            elif [[ -f "$_full_file" ]]; then
-                # just replace the file requesteed from the archive directory to the current one
-                afd=$_full_file
-                debug "afd: $afd"
-                fd=$(remove_archive_directory $afd)
-                debug "fd: $fd"
-                d=$(dirname "${fd}")
-                debug "d: $d"
-                f=$(basename "${fd}")
-                debug "f: $f"
-                debug "attempting to date archive: $fd"
-                dtf="$(get_date_ext)"
-                fdne=$(strip_date_ext $fd)
+        elif [[ -f "$_full_file" ]]; then
+            # just replace the file requesteed from the archive directory to the current one
+            afd=$_full_file
+            debug "afd: $afd"
+            fd=$(remove_archive_directory $afd)
+            debug "fd: $fd"
 
-                if echo $IGNORE_FILES | grep -w $f > /dev/null; then
-                    debug "$f was in the ignore list; skipping..."
-                else
-                    if [[ -f $fd ]]; then
-                        debug "[$fd] exists nothing to do except archive"
-                        if [[ "$MAKE_CHANGES" == "true" ]]; then
-                            try cp -ap $fdne $ARCHIVE_DATED$fdne.$dtf
-                        fi
-                        echo "archived [$ARCHIVE_DATED$fdne.$dtf]"
-                    else
-                        debug "[$fdne] does not exist; make the directory so copy does not fail"
-                        if [[ "$MAKE_CHANGES" == "true" ]]; then
-                            try mkdir $d
-                        fi
-                        echo "[$fdne] did not exist; nothing to archive"
-                    fi
-                    # now restore the file to the directory
-                    if [[ "$MAKE_CHANGES" == "true" ]]; then
-                        try cp -ap $afd $fdne
-                    fi
-                    echo "restored [$fdne] from [$afd]"
-                fi
+            # we have a file in the archive directory; determine if we are inside the archive or current directories or error (shouldn't be anything else)
+            if [[ "$(echo $_full_file | grep $ARCHIVE_DATED)" != "" ]]; then
+                restore_dated_archive_file "$afd"
             else
-                echo "[ $_full_file ] not found!"
+                restore_current_archive_file "$fd"
             fi
 
         else
-            # only thing left should be files or directories inside of the working directory; if the archive exists restore it
-            if [[ -d "$_full_file" ]]; then
-                # ask if they want to really do this
-                echo "You have requested to restore all files in directory [$_full_file] from your current archive if it exists"
-                echo 'Are you sure? [y/N]'
-                read _user_answer
-                debug "user answer: [$_user_answer]"
+            debug "[ $_full_file ] not found!"
+        fi
 
-                if [[ "$_user_answer" != "y" && "$_user_answer" != "Y" ]]; then
-                    echo " "
-                    echo "done"
-                    exit 0
-                fi
-
-                for fd in $(find $_full_file* -prune -type f); do
-                    debug "attempting to date archive: $fd"
-                    f=$(basename "${fd}")
-                    debug "f: $f"
-                    dtf="$(get_date_ext)"
-
-                    if echo $IGNORE_FILES | grep -w $f > /dev/null; then
-                        debug "$f was in the ignore list; skipping..."
-                    else
-                        if [[ -f $ARCHIVE_CURRENT$fd ]]; then
-                            # make an archive of the existing file
-                            debug "archiving [$ARCHIVE_DATED$fd.$dtf]"
-                            if [[ "$MAKE_CHANGES" == "true" ]]; then
-                                try cp -ap $fd $ARCHIVE_DATED$fd.$dtf
-                            fi
-                            echo "archived [$ARCHIVE_DATED$fd.$dtf]"
-                            # restore the file if it exists in the current archive folder
-
-                            if [[ "$MAKE_CHANGES" == "true" ]]; then
-                                try cp -ap $ARCHIVE_CURRENT$fd $fd
-                            fi
-                            echo "restored [$fd] from [$ARCHIVE_CURRENT$fd]"
-                        else
-                            echo "[$ARCHIVE_CURRENT$fd] not found!"
-                        fi
-                    fi
-                done
-
-            elif [[ -f "$_full_file" ]]; then
-                fd="$_full_file"
-                debug "fd: $fd"
-                f=$(basename "${fd}")
-                debug "f: $f"
-                debug "attempting to date archive: $fd"
-                dtf="$(get_date_ext)"
-
-                if echo $IGNORE_FILES | grep -w $f > /dev/null; then
-                    debug "$f was in the ignore list; skipping..."
-                else
-                    if [[ -f $ARCHIVE_CURRENT$fd ]]; then
-                        # make an archive of the existing file
-                        debug "archiving [$ARCHIVE_DATED$fd.$dtf]"
-                        if [[ "$MAKE_CHANGES" == "true" ]]; then
-                            try cp -ap $fd $ARCHIVE_DATED$fd.$dtf
-                        fi
-                        echo "archived [$ARCHIVE_DATED$fd.$dtf]"
-                        # restore the file if it exists in the current archive folder
-
-                        if [[ "$MAKE_CHANGES" == "true" ]]; then
-                            try cp -ap $ARCHIVE_CURRENT$fd $fd
-                        fi
-                        echo "restored [$fd] from [$ARCHIVE_CURRENT$fd]"
-                    else
-                        echo "[$ARCHIVE_CURRENT$fd] not found!"
-                    fi
-                fi
-            else
-                echo "[ $_full_file ] not found!"
+    else
+        # only thing left should be files or directories inside of a working directory; if the archive exists restore it
+        if [[ -d "$_full_file" ]]; then
+            # ask if they want to really do this
+            echo "You have requested to restore all files in directory [$_full_file] from your current archive if it exists"
+            echo 'Are you sure? [y/N]'
+            read _user_answer
+            debug "user answer: [$_user_answer]"
+            echo ""
+            if [[ "$_user_answer" != "y" && "$_user_answer" != "Y" ]]; then
+                echo " "
+                echo "done"
+                exit 0
             fi
+
+            for fd in $(find $_full_file* -prune -type f); do
+                if [[ -f $ARCHIVE_CURRENT$fd ]]; then
+                    restore_current_archive_file "$fd"
+                else
+                    echo "[$ARCHIVE_CURRENT$fd] not found!"
+                fi
+
+            done
+
+        elif [[ -f "$_full_file" ]]; then
+            fd="$_full_file"
+            debug "fd: $fd"
+            if [[ -f $ARCHIVE_CURRENT$fd ]]; then
+                restore_current_archive_file "$fd"
+            else
+                echo "[$ARCHIVE_CURRENT$fd] not found!"
+            fi
+        else
+            debug "[ $_full_file ] not found!"
         fi
     fi
 }
@@ -488,13 +419,17 @@ debug "full file: $_full_file"
 # it does not make sense to allow archiving current and restoring current at the same time.  r should not be used
 #   with c or s
 if [[ ("$_opt_current" = "true" && "$_opt_restore" = "true") || ("$_opt_sync" = "true" && "$_opt_restore" = "true") ]]; then
-    echo "You have requested to both archive current files and restore current files at the same time.  This does not make sense and is probably an error.  If this was truly your intention please enter each command separately."
+    echo "You have requested to both archive current files and restore current files at the same time.  This does not make sense and is probably an error.  If this was truly your intention please enter each command separately in the order you want to do them."
     exit 1
 fi
 # it does not make sense to sync and archive current at the same time; sync requires file from current_achive and current 
 #   requires external file outside the archive directory
 if [[ "$_opt_current" = "true" && "$_opt_sync" = "true" ]]; then
     echo "You have requested to sync all current files and sync a current file or directory.  This does not make sense since the first case uses the archive directory to specify which files and the second uses an external directory.  Retry with one or the other."
+    exit 1
+fi
+if [[ "$_opt_file" == "$ARCHIVE_DATED" ]]; then
+    echo "You have requested an operation against the root archive folder.  This is not allowed.  You need to provide a file inside the archive directory to restore."
     exit 1
 fi
 # ---- end validation checks ----
@@ -511,7 +446,7 @@ else
     debug "archiving..."
     # if we are archiving or archiving current do not allow files in the archive directory.  while this might be legitimate in very rare case it is almost always an error.  Let them do copys manually instead
     if [[ "$(echo $_full_file | grep $ARCHIVE_DIR)" != "" ]]; then
-        echo "You have requested to archive a file in the archive directory.  This is not allowed as it can cause problems.  If you want to copy things in the archive directory please copy them manually."
+        echo "You have requested to archive a file in the archive directory.  This is not allowed as it can cause problems.  You probably meant to archive the acutal file instead optionally passing the -c argument.  However, if you really want to manaipulate files in the archive directory you can do so manually; this is not recommended."
         exit 1
     fi
     _archive
