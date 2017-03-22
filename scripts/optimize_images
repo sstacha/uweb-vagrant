@@ -10,7 +10,7 @@ debug () {
 }
 
 show_help() {
-    echo "usage: ./uweb_images.sh [-h][-a][-v][-c][-o][-f][-d][-w][-i]"
+    echo "usage: ./uweb_images.sh [-h][-a][-v][-c][-o][-f][-d][-s][-t]"
     echo "     -h: show usage help"
     echo "     -v: show verbose logging"
     echo "     -a: all (runs both convert and optimize) on all images"
@@ -18,24 +18,30 @@ show_help() {
     echo "     -o: optimize all images with compression (uses image_optim)"
     echo "     -f: runs optimizations on one file from within a directory instead of all files in all directories"
     echo "     -d: recursively runs optimizations on only files different between the directories instead of all files in all directories"
-    echo "     -w: use the path given as an override for the website directory where images are stored (the source)"
-    echo "     -i: use the path given as an override for the images directory where optimized images are stored (the destination)"
+    echo "     -s: use the path given as an override for the source directory where images are stored"
+    echo "     -t: use the path given as an override for the target directory where optimized images are stored"
     # echo " no option: start in watch mode for folder changes"
 }
 
 # Initialize our own variables:
-maxsize=1024
-defaultsize=600
-# docbase='/home/ubuntu/server/website/docroot/templates/docroot'
-# imgbase='/home/ubuntu/server/website/images'
-docbase='/vagrant/test_images'
-imgbase='/vagrant/test_optimized'
+IMAGE_MAX_WIDTH=1024
+IMAGE_DEFAULT_WIDTH=600
+# IMAGE_SOURCE_DIR='/home/ubuntu/server/website/docroot/templates/docroot'
+# IMAGE_TARGET_DIR='/home/ubuntu/server/website/images'
+IMAGE_SOURCE_DIR='/vagrant/test_images'
+IMAGE_TARGET_DIR='/vagrant/test_optimized'
 
 # parse all options using getargs...
 # A POSIX variable
 OPTIND=1         # Reset in case getopts has been used previously in the shell.
 
-while getopts "h?vacof:dw:i:" opt; do
+_all=false
+_convert=false
+_optimize=false
+_file=false
+_log_verbose=false
+
+while getopts "h?vacof:ds:t:" opt; do
     case "$opt" in
     h|\?)
         show_help
@@ -53,9 +59,9 @@ while getopts "h?vacof:dw:i:" opt; do
         ;;
     d)  _diff=true
         ;;
-    w)  docbase=$OPTARG
+    s)  IMAGE_SOURCE_DIR=$OPTARG
         ;;
-    i)  imgbase=$OPTARG
+    t)  IMAGE_TARGET_DIR=$OPTARG
         ;;
     esac
 done
@@ -68,10 +74,11 @@ debug "options: "
 debug "all:$_all"
 debug "convert:$_convert"
 debug "optimize:$_optimize"
-debug "file:$_filee"
+debug "file:$_file"
 debug "diff:$_diff"
-debug "docbase:$_docbase"
-debug "imgbase:$_imgbase"
+debug "verbose logging:$_log_verbose"
+debug "IMAGE_SOURCE_DIR:$_IMAGE_SOURCE_DIR"
+debug "IMAGE_TARGET_DIR:$_IMAGE_TARGET_DIR"
 debug "argument: $@"
 debug ""
 
@@ -92,7 +99,7 @@ get_responsive_image_suffix() {
     debug "filelen: $filelen"
     poslen=$(expr $filelen - $extlen)
     debug "poslen: $poslen"
-    if [[ "$size" ]] && [[ "$size" != $defaultsize ]]; then
+    if [[ "$size" ]] && [[ "$size" != $IMAGE_DEFAULT_WIDTH ]]; then
         debug "returning: $size${1:$poslen}"
         echo $size"${1:$poslen}"
     else
@@ -116,7 +123,7 @@ smartresize() {
 #    echo "filelen: $filelen"
     poslen=$(expr $filelen - $extlen)
 #    echo "poslen: $poslen"
-    if [[ "$size" ]] && [[ "$size" != $defaultsize ]]; then
+    if [[ "$size" ]] && [[ "$size" != $IMAGE_DEFAULT_WIDTH ]]; then
         mogrify_ext="$size${1:$poslen}"
 #        echo "mogrify_ext: $mogrify_ext"
     else
@@ -128,7 +135,7 @@ smartresize() {
     if ls $pattern 1> /dev/null 2>&1; then
 #    if [[ "$ris" ]]; then
 #        echo "ris: $ris"
-        mogrify -path $3 -format "$mogrify_ext" -resize $maxsize\> -filter Triangle -define filter:support=2 -thumbnail 100% -unsharp 0.25x0.08+8.3+0.045 -dither None -posterize 136 -quality 82 -define jpeg:fancy-upsampling=off -define png:compression-filter=5 -define png:compression-level=9 -define png:compression-strategy=1 -define png:exclude-chunk=all -interlace none -colorspace sRGB $1
+        mogrify -path $3 -format "$mogrify_ext" -resize $IMAGE_MAX_WIDTH\> -filter Triangle -define filter:support=2 -thumbnail 100% -unsharp 0.25x0.08+8.3+0.045 -dither None -posterize 136 -quality 82 -define jpeg:fancy-upsampling=off -define png:compression-filter=5 -define png:compression-level=9 -define png:compression-strategy=1 -define png:exclude-chunk=all -interlace none -colorspace sRGB $1
 #    else
 #        mogrify -path $3 -filter Triangle -define filter:support=2 -thumbnail $2 -unsharp 0.25x0.08+8.3+0.045 -dither None -posterize 136 -quality 82 -define jpeg:fancy-upsampling=off -define png:compression-filter=5 -define png:compression-level=9 -define png:compression-strategy=1 -define png:exclude-chunk=all -interlace none -colorspace sRGB $smartresizepattern
 #    fi
@@ -140,7 +147,7 @@ get_responsive_image_name() {
     extlen=${#ext}
     filelen=${#1}
     poslen=$(expr $filelen - $extlen)
-    if [[ "$2" ]] && [[ "$2" != $defaultsize ]]; then
+    if [[ "$2" ]] && [[ "$2" != $IMAGE_DEFAULT_WIDTH ]]; then
         echo "${1:0:$poslen}".$2"${1:$poslen}"
     else
         echo $1
@@ -154,18 +161,18 @@ get_responsive_image_path() {
 get_absolute_docroot_path() {
     x=${1:2}
     if [[ "$x" ]]; then
-        echo $docbase/$x
+        echo $IMAGE_SOURCE_DIR/$x
     else
-        echo $docbase
+        echo $IMAGE_SOURCE_DIR
     fi
 }
 
 get_absolute_image_path() {
     x=${1:2}
     if [[ "$x" ]]; then
-        echo $imgbase/$x
+        echo $IMAGE_TARGET_DIR/$x
     else
-        echo $imgbase 
+        echo $IMAGE_TARGET_DIR 
     fi
 }
 
@@ -212,8 +219,42 @@ is_img_ext() {
     fi
 }
 
-echo 'docbase: '$docbase
-echo 'imgbase: '$imgbase
+# ----- validation rules before we start executing with options ------
+# make sure the IMAGE_SOURCE_DIR and IMAGE_TARGET_DIR exist and are directories; do not error if the output doesn't exist prompt and create
+# check that we have appropriate directories or bail
+if [ -d "$IMAGE_SOURCE_DIR" ]; then
+    debug "[$IMAGE_SOURCE_DIR] exists; continuing..."
+else
+    echo "You have requested to optimize images passing the directory [$IMAGE_SOURCE_DIR].  The directory does not exist so there will be nothing to optimize.  Please set the default script variable correctly or pass in the source directory option with -s <source dir path>"
+    exit 1
+fi
+if [ -f "$IMAGE_TARGET_DIR" ]; then
+    echo "The target directory exists as a file.  This is not allowed.  You must pass a directory to put the resulting optimized images in.  Please remove the file or pass in a different target directory option with -t <target dir>"
+    exit 1
+elif [ -d "$IMAGE_TARGET_DIR" ]; then
+    debug "[$IMAGE_TARGET_DIR] exists; continuing..."
+else
+    echo "The target directory to store the optimized images [$IMAGE_TARGET_DIR] does not exist.  This could be becuase it is incorrect or becuse it doesn't exist yet. If it is incorrect, re-run and pass in the target directory option with -t <target dir path>"
+    echo 'Do you to create the target directory for the optimized images and proceed? [y/N]'
+    read _user_answer
+    debug "user answer: [$_user_answer]"
+    echo ""
+    if [[ "$_user_answer" != "y" && "$_user_answer" != "Y" ]]; then
+        echo " "
+        echo "done"
+        exit 0
+    fi
+    # they said yes so create the directory if we can
+    mkdir -p $IMAGE_TARGET_DIR
+fi
+
+# ----- validation rules before we start executing with options ------
+
+# initialize to the tmp dir to prevent and deletions to files we don't expect
+cd /tmp
+
+echo 'document base (source image directory): '$IMAGE_SOURCE_DIR
+echo 'IMAGE_TARGET_DIR: '$IMAGE_TARGET_DIR
 echo ' '
 debug '$_file: '$_file
 if [ -z $_file ]; then
@@ -225,13 +266,13 @@ else
     curdir=$(pwd)
     # find the docroot path and then get whats left
     debug "curdir: $curdir"
-    debug `echo $curdir | sed -r "s $docbase  g"`
-    debug "$(echo $curdir | sed -r "s $docbase  g")"
-    debug "docbase: $docbase"
-    relpath="$(echo $curdir | sed -r "s $docbase  g")"
+    debug `echo $curdir | sed -r "s $IMAGE_SOURCE_DIR  g"`
+    debug "$(echo $curdir | sed -r "s $IMAGE_SOURCE_DIR  g")"
+    debug "IMAGE_SOURCE_DIR: $IMAGE_SOURCE_DIR"
+    relpath="$(echo $curdir | sed -r "s $IMAGE_SOURCE_DIR  g")"
     debug "relpath: $relpath"
     # take this and append to the images directory
-    newpath=$imgbase$relpath
+    newpath=$IMAGE_TARGET_DIR$relpath
     debug "newpath: $newpath"
     
     # execute the image magick and optimizer on the file
@@ -244,8 +285,8 @@ fi
 debug '$_diff: '$_diff
 if [ "$_diff" = "true" ]; then
     debug 'deleting all images not in the docroot directory...'
-    delfiles=$(diff -r $docbase $imgbase | grep $imgbase | grep '^Only' | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$' | awk '{print $3$4}')
-    echo "files only in imgbase:"
+    delfiles=$(diff -r $IMAGE_SOURCE_DIR $IMAGE_TARGET_DIR | grep $IMAGE_TARGET_DIR | grep '^Only' | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$' | awk '{print $3$4}')
+    echo "files only in IMAGE_TARGET_DIR:"
     for df in $delfiles; do
         dtrim=${df%:*}  # retain the part before the colon
         ftrim=${df##*:} # retain the part after the last colon
@@ -253,8 +294,8 @@ if [ "$_diff" = "true" ]; then
         rm $dtrim/$ftrim
     done
 	debug 'running conversion and optimization on all images in the image directory...'
-    newfiles=$(diff -r $docbase $imgbase | grep $docbase | grep '^Only' | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$' | awk '{print $3$4}')
-    echo "files only in docbase:"
+    newfiles=$(diff -r $IMAGE_SOURCE_DIR $IMAGE_TARGET_DIR | grep $IMAGE_SOURCE_DIR | grep '^Only' | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$' | awk '{print $3$4}')
+    echo "files only in IMAGE_SOURCE_DIR:"
     for nf in $newfiles; do
         echo "     optimizing [$nf]"
         # we need to trim our directory before sending
@@ -262,8 +303,8 @@ if [ "$_diff" = "true" ]; then
         ftrim=${nf##*:} # retain the part after the last colon
         debug "dtrim: $dtrim"
         debug "ftrim: $ftrim"
-        relpath="$(echo $dtrim | sed -r "s $docbase  g")"
-        newpath=$imgbase$relpath
+        relpath="$(echo $dtrim | sed -r "s $IMAGE_SOURCE_DIR  g")"
+        newpath=$IMAGE_TARGET_DIR$relpath
         debug "relpath: $relpath"
         debug "newpath: $newpath"
         cd $dtrim
@@ -287,11 +328,11 @@ if [ "$_all" = "true" ]; then
 fi
 if [ "$_convert" = "true" ]; then
 	debug 'wiping and converting the image directory...'
-    cd $imgbase
+    cd $IMAGE_TARGET_DIR
 	rm -rf *	
 	echo "images deleted.  recreating..."
-    cd $docbase
-    # smartresize2 ".*\.\(jpg\|jpeg\|png\|gif\|tiff\)$" 600 $imgbase
+    cd $IMAGE_SOURCE_DIR
+    # smartresize2 ".*\.\(jpg\|jpeg\|png\|gif\|tiff\)$" 600 $IMAGE_TARGET_DIR
     for d in $(find . -type d); do
         adp=$(get_absolute_docroot_path $d)
         echo $adp
@@ -334,7 +375,7 @@ if [ "$_convert" = "true" ]; then
 #        # echo "generating 1200px images for all .png..."
 #        smartresize '*.png' 1200 $aip      
    done
-    # smartresize2 '*.{jpg|jpeg|gif|tiff|png}' 600 $imgbase
+    # smartresize2 '*.{jpg|jpeg|gif|tiff|png}' 600 $IMAGE_TARGET_DIR
     echo "done converting"
     # echo "_optimize: $_optimize"
     if [ "$_optimize" != "true" ]; then
@@ -344,7 +385,7 @@ fi
 
 debug '$_optimize: '$_optimize
 if [ "$_optimize" = "true" ]; then
-    cd $imgbase
+    cd $IMAGE_TARGET_DIR
     image_optim -r --no-pngout .
     echo "done optimizing"
     exit 0
