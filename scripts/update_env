@@ -1,0 +1,6 @@
+#!/bin/bash
+# re-creates the requirements.txt file in the website directory based on any pip install changes
+source /usr/local/bin/virtualenvwrapper.sh
+workon env
+pip3 freeze > $WEBSITE_HOME/requirements.txt
+echo done

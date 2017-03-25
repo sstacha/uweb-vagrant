@@ -7,6 +7,7 @@ export UBUNTU_HOME=/home/ubuntu
 export SERVER_HOME=$UBUNTU_HOME/server
 export WEBSITE_HOME=$SERVER_HOME/website
 export VAGRANT_HOME=/vagrant
+export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3
 
 cat $VAGRANT_HOME/files/.profile > /home/ubuntu/.profile
 # . /home/ubuntu/.profile
@@ -79,14 +80,16 @@ X_ARCH="$(getconf LONG_BIT)"
 echo "building for arch " + $X_ARCH
 wget https://nodejs.org/dist/v7.5.0/node-v7.5.0-linux-x$X_ARCH.tar.xz
 tar -C /usr/local --strip-components 1 -xJf node-v7.5.0-linux-x$X_ARCH.tar.xz
+rm node-v7.5.0-linux-x$X_ARCH.tar.xz
 
 # install all python stuff for django (should come installed with latest 16.04)
 try apt-get install -y libffi-dev python3-dev
 echo "$(python3 -V)"
 try apt-get install -y python3-pip python3-venv
-ln -s /usr/bin/pip3 /usr/bin/pip
-pip install --upgrade pip
-echo "$(pip -V)"
+# decided we don't want to do this; there may be a case where someone needs a python2 and 3 env at the same time
+# ln -s /usr/bin/pip3 /usr/bin/pip
+pip3 install --upgrade pip
+echo "$(pip3 -V)"
 
 # install all security stuff
 try apt-get install -y libsasl2-dev libldap2-dev libssl-dev
@@ -109,24 +112,75 @@ npm install -g svgo
 # install the gem for image_optim image optimizer our cms will use
 gem install image_optim
 
+# found that ubuntu user and _developer group should own everything under /usr/local/ for python an node stuff after they are installed
+chown -R ubuntu:_developer /usr/local/
+# now the virtualenv stuff can write to the python directories as it needs to
+su ubuntu <<'EOF'
+pip3 install virtualenvwrapper
+
+# create our virtual envrionment if it does not exist (for re-provisioning again)
+source /usr/local/bin/virtualenvwrapper.sh
+_tmpls=$(lsvirtualenv -b | grep "^env$")
+EOF
+echo "tmpls: $_tmpls"
+_makeenv=true
+if [[ "$_tmpls" != "" ]]; then
+    # if we have a requirements.txt file ask if we want to re-provision our python environment
+    echo "You requested to re-provision the machine. A virtual envrionment already exists."
+    echo "NOTE: If you have done any pip installs from inside the virtual machine you may loose dependencies"
+    echo "     If in doubt say no"
+    echo ""
+    echo 'Are you sure you want to delete and re-create the virtual environment from the requirments.txt file at this time? [y/N]'
+    read _user_answer
+    debug "user answer: [$_user_answer]"
+    echo ""
+    if [[ "$_user_answer" != "y" && "$_user_answer" != "Y" ]]; then
+        echo "skipping python envrionment provisioning..."
+        _makeenv=false
+    else
+su ubuntu <<'EOF'
+        deactivate >/dev/null 2>&1
+        rmvirtualenv env
+EOF
+    fi
+fi
+if [[ "$_makeenv" == "true" ]]; then
+su ubuntu <<'EOF'
+    source /usr/local/bin/virtualenvwrapper.sh
+    # provision the new environment and load the requirements.txt again if we have one
+    pip3 install virtualenv
+    mkvirtualenv --python=/usr/bin/python3 --no-site-packages env
+EOF
+fi
+
+# at this point we should always have an environment so lets start it up for other installs
+su ubuntu workon env
+
 # install django required files or a base install
 if [ -f "$WEBSITE_HOME/requirements.txt" ]; then
     echo "requirements.txt exists; installing or re-installing modules from it..."
-    pip install -r $WEBSITE_HOME/requirements.txt
+su ubuntu <<'EOF'
+    workon env
+    su ubuntu pip3 install -r $WEBSITE_HOME/requirements.txt
+EOF
 else
     echo "requirements.txt does not exist; installing base django modules..."
     cd $WEBSITE_HOME
     if [ -f "manage.py" ]; then
         echo "manage.py already exists: skipping project install..."
     else
-        pip install --upgrade pip
-        pip install django
+su ubuntu <<'EOF'
+        source /usr/local/bin/virtualenvwrapper.sh
+        workon env
+        pip3 install --upgrade pip
+        pip3 install django
         django-admin startproject docroot .
         python3 manage.py migrate
         echo "from django.contrib.auth.models import User; User.objects.create_superuser('admin@example.com', 'admin', 'admin')" | python3 manage.py shell
         sed -i 's/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = \[\"\*\"\]/' docroot/settings.py
         echo 'STATIC_ROOT = os.path.join(BASE_DIR, "static/")' >> docroot/settings.py
-        pip install uwsgi
+        pip3 install uwsgi
+EOF
         # test uwsgi by command line...
         # uwsgi --http :8080 --chdir /home/ubuntu/website -w docroot.wsgi
         mkdir -p /etc/uwsgi/sites
@@ -137,6 +191,8 @@ else
         echo "$(ls -al /run/)"
         # copy the uwsgi config in place
         cp -f $VAGRANT_HOME/files/uwsgi_uweb.ini /etc/uwsgi/sites/uwsgi_uweb.ini
+        # create an initial requirements.txt file for the host to build a virtual envrionment from
+        su ubuntu $VAGRANT_HOME/scripts/update_env
     fi
 fi
 

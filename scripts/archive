@@ -28,7 +28,7 @@ debug () {
 show_help() {
     echo "usage: archive [-h?][-v][-c][-r][-R]"
     echo " ex: archive -c file.txt"
-    echo "     -h/?: show usage help"
+    echo "     -h or ?: show usage help"
     echo "     -v: show verbose logging"
     echo "     -c: archive to current folder as well as dated folder"
     echo "     -r: make dated backup of all files in current archive then restore to external locations"

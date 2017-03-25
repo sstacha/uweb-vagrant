@@ -1,3 +1,11 @@
-
+# ignoring vagrant temprary download files (too big)
 .vagrant/*
+# ignoring all logs for the vagrant app as machine specific
 *.log
+# ignoring all .DS_Store files that our host mac machine places inside the shared folder directories
+*.DS_Store
+# ignoring all virtual environment stuff as is host machine specific and must be rebuilt for each host
+env/*
+# not sure if we should ignore test folders but doing so for now
+test_images/*
+test_optimized/*

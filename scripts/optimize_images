@@ -1,53 +1,229 @@
 #!/bin/bash
 # script to optimize images
 
-log_verbose=false
+# Initialize our constants:
+MAKE_CHANGES=false
+ENABLE_WEBP=false
+IGNORE_FILES=".DS_Store .git"
+IGNORE_DIRECTORIES="/home/ubuntu/server/website/docroot/images/fixed-images /tmp/test-noprocess"
+IMAGE_MAX_WIDTH=1024
+IMAGE_FILE_EXTENSIONS="*.jpg *.jpeg *.png *.tiff *.gif"
+IMAGE_FILE_WIDTH_SIZES="300 600 1080"
+# Initialize our variables:
+# default source and target dirs; change this for your environment
+# _image_source='/home/ubuntu/server/website/docroot/templates/docroot'
+# _image_target='/home/ubuntu/server/website/images'
+_image_source='/vagrant/test_images'
+_image_target='/vagrant/test_optimized'
+# option choices
+_all=false
+_remove_cache=false
+_convert=false
+_optimize=false
+_diff=false
+_log_verbose=false
+# absolute versions of the source and target parameters
+_full_source=""
+_full_target=""
+
 debug () {
-		if [ "$log_verbose" = "true" ] ; then
-        	# log all messages
+		if [ "$_log_verbose" = "true" ] ; then
         	echo $1;
         fi
 }
 
 show_help() {
     echo "usage: ./uweb_images.sh [-h][-a][-v][-c][-o][-f][-d][-s][-t]"
-    echo "     -h: show usage help"
+    echo "     -h or ?: show usage help"
     echo "     -v: show verbose logging"
-    echo "     -a: all (runs both convert and optimize) on all images"
-    echo "     -c: convert all images and crop any >1028 width"
-    echo "     -o: optimize all images with compression (uses image_optim)"
-    echo "     -f: runs optimizations on one file from within a directory instead of all files in all directories"
-    echo "     -d: recursively runs optimizations on only files different between the directories instead of all files in all directories"
-    echo "     -s: use the path given as an override for the source directory where images are stored"
+    echo "     -r: remove cached image"
+    echo "     -a: all - runs both convert and optimize on all images (if dir) or image (if file)"
+    echo "     -c: only convert and crop any >1028 width"
+    echo "     -o: only optimize with compression (uses image_optim)"
+    echo "     -d: recursively runs conversion and optimizations on only files different between the directories instead of all files in all directories"
     echo "     -t: use the path given as an override for the target directory where optimized images are stored"
-    # echo " no option: start in watch mode for folder changes"
+    echo " argument: use the path or file given as an override for the source file or directory"
 }
 
-# Initialize our own variables:
-IMAGE_MAX_WIDTH=1024
-IMAGE_DEFAULT_WIDTH=600
-# IMAGE_SOURCE_DIR='/home/ubuntu/server/website/docroot/templates/docroot'
-# IMAGE_TARGET_DIR='/home/ubuntu/server/website/images'
-IMAGE_SOURCE_DIR='/vagrant/test_images'
-IMAGE_TARGET_DIR='/vagrant/test_optimized'
+strip_slash() {
+    echo "$1"|sed 's/\/$//g'
+}
+# determine if the path is relative and if so adds the pwd or passed parameter; we need to do operations on absolute files
+get_absolute_file() {
+    _gaf_curdir=$(pwd)
+    _opt_file="$1"
+    # echo "gaf curdir: $_gaf_curdir"
+    # if the source file or directory doesn't start with a slash then append the cwd
+    if [[ ${_opt_file:0:1} == "/" ]] ;then
+        echo $_opt_file
+    else
+        echo "$_gaf_curdir/$_opt_file"
+    fi
+}
+# remove the pattern from the cache directory
+remove_cache() {
+	debug "[remove cache] removing [$_full_target]..."
+    _target_dir=$(strip_slash $full_target)
+    _target_glob=$(basename "${full_source}")
+	if [[ "$MAKE_CHANGES" == "true" ]]; then
+	    # strip any slash
+        rm -rf $_target_dir/$_target_glob
+    fi
+    echo "[$_target_dir/$_target_glob] deleted"
+}
+# will call mogrify wrapper for each condition we have for each directory
+mogrify_directory() {
+    md_directory=$1
+    md_target_dir=$_full_target
+
+    if [[ "$md_directory" == "$md_target_dir" ]]; then
+        sr_target_dir=""
+    fi
+
+    md_directory=$(strip_slash $md_directory)
+    # when we are asked to mogrify a directory we will do so for each type we support
+    for md_ext in $IMAGE_FILE_EXTENSIONS; do
+        # first call mogrify for each extension without resizing as the default
+        debug "[mogrify_directory] calling mogrify wrapper $md_directory/$md_ext $md_target_dir"
+        mogrify_wrapper "$md_directory/$md_ext" $md_target_dir $md_size $p_ext
+        if [[ "$ENABLE_WEBP" == "true" ]]; then
+            # do the same thing for webp
+            mogrify_wrapper "$md_directory/$md_ext" $md_target_dir "" "webp $p_ext"
+        fi
+        for md_size in $IMAGE_FILE_WIDTH_SIZES; do
+            md_pattern="$md_directory/$md_ext"
+            p_ext="${md_ext##*.}"
+            p_ext="$md_size.$p_ext"
+            # then call mogrify for each file size we want in our src selections
+            debug "[mogrify_directory] calling mogrify wrapper $md_pattern $md_target_dir $md_size $p_ext"
+            mogrify_wrapper $md_pattern $md_target_dir $md_size $p_ext
+            if [[ "$ENABLE_WEBP" == "true" ]]; then
+                # do the same thing for webp
+                mogrify_wrapper $md_pattern $md_target_dir $md_size "webp $p_ext"
+            fi
+        done
+    done
+
+}
+# will call mogrify for each condition for each file passed
+# this is pretty similar to directory except our pattern is passed through
+mogrify_file() {
+    mf_file=$1
+    mf_target_dir=$_full_target
+    mf_ext="${mf_file##*.}"
+    # when we are asked to mogrify a file we will use it's extension and bail if we don't have one
+    if [[ "$mf_ext" == "" ]]; then
+        echo "We requested to process a file that did not have an extension; skipping since we wouldn't know what format to use"
+    else
+        # first call mogrify for each extension without resizing as the default
+        debug "[mogrify_file] calling mogrify wrapper $mf_file $mf_target_dir"
+        mogrify_wrapper $mf_file $mf_target_dir
+        if [[ "$ENABLE_WEBP" == "true" ]]; then
+            # try converting everything to webp also
+            p_ext="webp $mf_ext"
+            mogrify_wrapper $mf_file $mf_target_dir "" $p_ext
+        fi
+        for mf_size in $IMAGE_FILE_WIDTH_SIZES; do
+            p_ext="$mf_size.$mf_ext"
+            # then call mogrify for each file size we want in our src selections
+            debug "[mogrify_directory] calling mogrify wrapper $mf_file $mf_target_dir $mf_size $p_ext"
+            mogrify_wrapper $mf_file $mf_target_dir $mf_size $p_ext
+            if [[ "$ENABLE_WEBP" == "true" ]]; then
+                # try converting everything to webp
+                # todo: see if this keeps our .600.webp extension or renames to just .webp
+                p_ext="webp $p_ext"
+                mogrify_wrapper $mf_file $mf_target_dir $mf_size $p_ext
+            fi
+        done
+    fi
+}
+mogrify_wrapper() {
+    debug "[mogrify_wrapper] in mogrify_wrapper()"
+    mw_source_pattern=$1
+    mw_target_dir=$2
+    mw_target_size=$3
+    mw_target_ext=$4
+
+    # we must have a source pattern or error
+    if [[ "$mw_source_pattern" == "" ]]; then
+        echo "Attempted to call mogrify but nothing was passed for the source file to work against; aborting.  This shouldn't happen."
+        exit 1
+    fi
+    if [[ "$mw_target_dir" == "" ]]; then
+        debug "[mogrify_wrapper] target directory was not passed; omitting from the mogrify call"
+    else
+        mw_target_dir="-path \"$mw_target_dir\""
+    fi
+    if [[ "$mw_target_size" == "" ]]; then
+        debug "[mogrify_wrapper] target size was not passed; defaulting to less than IMAGE_MAX_WIDTH"
+        p_target_size="-resize $IMAGE_MAX_WIDTH\\>"
+    else
+        mw_target_ext="-resize $mw_target_size"
+    fi
+    if [[ "$mw_target_ext" == "" ]]; then
+        debug "[mogrify_wrapper] target extension was not passed; omitting from the mogrify call"
+    else
+        mw_target_ext="-format \"$mw_target_ext\""
+    fi
+
+    debug "[mogrify_wrapper] mw_source_pattern: $mw_source_pattern"
+    debug "[mogrify_wrapper] mw_target_dir: $mw_target_dir"
+    debug "[mogrify_wrapper] mw_target_size: $mw_target_size"
+    debug "[mogrify_wrapper] p_target_size: $p_target_size"
+    debug "[mogrify_wrapper] mw_target_ext: $mw_target_ext"
+    debug "[mogrify_wrapper] calling \"mogrify $mw_target_dir $mw_target_ext $p_target_size -filter Triangle -define filter:support=2 -thumbnail 100% -unsharp 0.25x0.08+8.3+0.045 -dither None -posterize 136 -quality 82 -define jpeg:fancy-upsampling=off -define png:compression-filter=5 -define png:compression-level=9 -define png:compression-strategy=1 -define png:exclude-chunk=all -interlace none -colorspace sRGB $mw_source_pattern\""
+
+
+    # make our mogrify call with the options we have
+    if [[ "$MAKE_CHANGES" == "true" ]]; then
+        mogrify $mw_target_dir $mw_target_ext $p_target_size -filter Triangle -define filter:support=2 -thumbnail 100% -unsharp 0.25x0.08+8.3+0.045 -dither None -posterize 136 -quality 82 -define jpeg:fancy-upsampling=off -define png:compression-filter=5 -define png:compression-level=9 -define png:compression-strategy=1 -define png:exclude-chunk=all -interlace none -colorspace sRGB $mw_source_pattern
+    fi
+}
+# main method to do the resize and scaling optimizations
+smartresize() {
+    debug '[smartresize] $1: '$1
+    sr_source="$1"
+    sr_target_dir="$_full_target"
+
+    # when we call smartresize we pass a source pattern; this could be a file or directory or it could be a glob pattern like ne*
+    # we will separate the absolute path from the pattern and run a find to get either a single file or directory or a set of files and directories
+    # at this point we should always have an absolute path with either a file, folder, or pattern
+    # if it contains a file we want to run mogrify on it for each size
+    if [[ -f "$sr_source" ]]; then
+        debug "[smartresize] determined source passed was a file; calling file mogrify..."
+        mogrify_file $sr_source
+    elif [[ -d "$sr_source" ]]; then
+        debug "[smartresize] determined source passed was a directory; calling directory mogrify for each directory recursively..."
+        # stripping the last slash if it is there so I don't get double slashes after apending the *
+        sr_folder=$(strip_slash "$sr_source")
+        for d in $(find $sr_folder/* -type d); do
+            debug "[smartresize] calling directory mogrify $d"
+            mogrify_directory $d
+        done
+    else
+        # we have a pattern so lets issue a find with the pattern and then for each file call mogrify
+        for f in $(find $sr_source -type f | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$'); do
+            debug "[smartresize] calling file mogrify $f"
+            mogrify_file $f
+        done
+    fi
+}
+
+
 
 # parse all options using getargs...
 # A POSIX variable
 OPTIND=1         # Reset in case getopts has been used previously in the shell.
 
-_all=false
-_convert=false
-_optimize=false
-_file=false
-_log_verbose=false
-
-while getopts "h?vacof:ds:t:" opt; do
+while getopts "h?vacodt:r" opt; do
     case "$opt" in
     h|\?)
         show_help
         exit 0
         ;;
-    v)  log_verbose=true
+    v)  _log_verbose=true
+        ;;
+    r)  _remove_cache=true
         ;;
     a)  _all=true
         ;;
@@ -55,13 +231,9 @@ while getopts "h?vacof:ds:t:" opt; do
         ;;
     o)  _optimize=true
         ;;
-    f)  _file=$OPTARG
-        ;;
     d)  _diff=true
         ;;
-    s)  IMAGE_SOURCE_DIR=$OPTARG
-        ;;
-    t)  IMAGE_TARGET_DIR=$OPTARG
+    t)  _image_target=$OPTARG
         ;;
     esac
 done
@@ -70,171 +242,52 @@ shift $((OPTIND-1))
 
 [ "$1" = "--" ] && shift
 
+if [ ! -z $@ ]; then
+	_image_source=$@
+fi
+
+_full_source=$(get_absolute_file $_image_source)
+_full_target=$(get_absolute_file $_image_target)
+
+# if no action option is passed and no argument then assume all
+if [[ "$_convert" == "false" && "$_optimize" == "false" && "$_all" == "false" && "$_remove_cache" == "false" && "$_diff" == "false" ]]; then
+    _diff=true
+fi
+
 debug "options: "
 debug "all:$_all"
+debug "remove cache:$_remove_cache"
 debug "convert:$_convert"
 debug "optimize:$_optimize"
-debug "file:$_file"
 debug "diff:$_diff"
 debug "verbose logging:$_log_verbose"
-debug "IMAGE_SOURCE_DIR:$_IMAGE_SOURCE_DIR"
-debug "IMAGE_TARGET_DIR:$_IMAGE_TARGET_DIR"
 debug "argument: $@"
+debug "_image_source:$_image_source"
+debug "_image_target:$_image_target"
+debug "full source: $_full_source"
+debug "full_target: $_full_target"
+debug "MAKE_CHANGES: $MAKE_CHANGES"
+debug "IGNORE_FILES: $IGNORE_FILES"
+debug "IMAGE_MAX_WIDTH: $IMAGE_MAX_WIDTH"
+debug "IMAGE_DEFAULT_WIDTH: $IMAGE_DEFAULT_WIDTH"
 debug ""
 
-if [ -z $output_file ]; then
-	output_file=$@
-fi
-
-get_responsive_image_suffix() {
-    pattern=$1
-    size=$2
-    debug "size: $size"
-    ext=$(expr match "$1" '.*\(\.[a-Z]*\)')
-    debug "ext: $ext"
-    debug "pattern: $pattern"
-    extlen=${#ext}
-    debug "extlen: $extlen"
-    filelen=${#pattern}
-    debug "filelen: $filelen"
-    poslen=$(expr $filelen - $extlen)
-    debug "poslen: $poslen"
-    if [[ "$size" ]] && [[ "$size" != $IMAGE_DEFAULT_WIDTH ]]; then
-        debug "returning: $size${1:$poslen}"
-        echo $size"${1:$poslen}"
-    else
-        debug "returning: ${1:$poslen+1}"
-        echo "${1:$poslen+1}"
-    fi
-}
-
-smartresize() {
-#    echo '$1: '$1 '$2: '$2
-    pattern="$1"
-    size="$2"
-#    echo "smartpattern: $pattern"
-#    echo "smartsize: $size"
-    ext=$(expr match "$1" '.*\(\.[a-Z]*\)')
-#    echo "ext: $ext"
-#    echo "pattern: $pattern"
-    extlen=${#ext}
-#    echo "extlen: $extlen"
-    filelen=${#pattern}
-#    echo "filelen: $filelen"
-    poslen=$(expr $filelen - $extlen)
-#    echo "poslen: $poslen"
-    if [[ "$size" ]] && [[ "$size" != $IMAGE_DEFAULT_WIDTH ]]; then
-        mogrify_ext="$size${1:$poslen}"
-#        echo "mogrify_ext: $mogrify_ext"
-    else
-        mogrify_ext="${1:$poslen+1}"
-#        echo "mogrify_ext: $mogrify_ext"
-    fi
-    
-    #ris="$(get_responsive_image_suffix $smartresizepattern $smartresizesize)"
-    if ls $pattern 1> /dev/null 2>&1; then
-#    if [[ "$ris" ]]; then
-#        echo "ris: $ris"
-        mogrify -path $3 -format "$mogrify_ext" -resize $IMAGE_MAX_WIDTH\> -filter Triangle -define filter:support=2 -thumbnail 100% -unsharp 0.25x0.08+8.3+0.045 -dither None -posterize 136 -quality 82 -define jpeg:fancy-upsampling=off -define png:compression-filter=5 -define png:compression-level=9 -define png:compression-strategy=1 -define png:exclude-chunk=all -interlace none -colorspace sRGB $1
-#    else
-#        mogrify -path $3 -filter Triangle -define filter:support=2 -thumbnail $2 -unsharp 0.25x0.08+8.3+0.045 -dither None -posterize 136 -quality 82 -define jpeg:fancy-upsampling=off -define png:compression-filter=5 -define png:compression-level=9 -define png:compression-strategy=1 -define png:exclude-chunk=all -interlace none -colorspace sRGB $smartresizepattern
-#    fi
-    fi
-}
-
-get_responsive_image_name() {
-    ext=$(expr match "$1" '.*\(\.[a-Z]*\)')
-    extlen=${#ext}
-    filelen=${#1}
-    poslen=$(expr $filelen - $extlen)
-    if [[ "$2" ]] && [[ "$2" != $IMAGE_DEFAULT_WIDTH ]]; then
-        echo "${1:0:$poslen}".$2"${1:$poslen}"
-    else
-        echo $1
-    fi
-}
-
-get_responsive_image_path() {
-    echo "$(sed -e 's/\(.*\)\/docroot/\1\/images/' <<< "$1")"
-}
-
-get_absolute_docroot_path() {
-    x=${1:2}
-    if [[ "$x" ]]; then
-        echo $IMAGE_SOURCE_DIR/$x
-    else
-        echo $IMAGE_SOURCE_DIR
-    fi
-}
-
-get_absolute_image_path() {
-    x=${1:2}
-    if [[ "$x" ]]; then
-        echo $IMAGE_TARGET_DIR/$x
-    else
-        echo $IMAGE_TARGET_DIR 
-    fi
-}
-
-remake_responsive_image () {
-    remove_responsive_image $1 $2 $3
-    add_responsive_image $1 $2 $3
-}
-
-add_responsive_image () {
-    echo "output directory: [$3]"
-    echo "changing directory to [$1]"
-    cd $1
-#    echo $(pwd)
-    echo "adding responsive images for [$2]"
-    # first resize to images directory with the default file name then others
-#    size=600
-#    echo "size: "$size
-#    echo "newfile: "$newfile
-    smartresize $2 600 $3
-#    size=300
-#    newfile="$(get_responsive_image_name $2 $size)"
-#    echo "newfile: "$newfile
-    smartresize $2 300 $3
-#    size=1200
-#    newfile="$(get_responsive_image_name $2 $size)"
-#    echo "newfile: "$newfile
-    smartresize $2 1200 $3
-}
-remove_responsive_image () {
-    echo "removing responsive images for [$1$2]"
-    echo "removing [$3$(get_responsive_image_name $2 600)]..."
-    rm $3"$(get_responsive_image_name $2 600)"
-    echo "removing [$3$(get_responsive_image_name $2 300)]..."
-    rm $3"$(get_responsive_image_name $2 300)"
-    echo "removing [$3$(get_responsive_image_name $2 1200)]..."
-    rm $3"$(get_responsive_image_name $2 1200)"
-}
-
-is_img_ext() {
-    if [[ "$1" =~ (jpg|jpeg|gif|tiff|png)$ ]]; then 
-        echo true
-    else
-        echo false
-    fi
-}
-
 # ----- validation rules before we start executing with options ------
-# make sure the IMAGE_SOURCE_DIR and IMAGE_TARGET_DIR exist and are directories; do not error if the output doesn't exist prompt and create
+# make sure the _image_source and _image_target exist and are directories; do not error if the output doesn't exist prompt and create
 # check that we have appropriate directories or bail
-if [ -d "$IMAGE_SOURCE_DIR" ]; then
-    debug "[$IMAGE_SOURCE_DIR] exists; continuing..."
+if [[ -d "$_full_source" || -f "$_full_source" ]]; then
+    debug "validation: [$_full_source] exists; continuing..."
 else
-    echo "You have requested to optimize images passing the directory [$IMAGE_SOURCE_DIR].  The directory does not exist so there will be nothing to optimize.  Please set the default script variable correctly or pass in the source directory option with -s <source dir path>"
+    echo "You have requested to optimize images passing the file or directory [$_image_source].  The file or directory does not exist so there will be nothing to optimize.  Please set the default script variable correctly or use the option: -s <source file or dir>"
     exit 1
 fi
-if [ -f "$IMAGE_TARGET_DIR" ]; then
-    echo "The target directory exists as a file.  This is not allowed.  You must pass a directory to put the resulting optimized images in.  Please remove the file or pass in a different target directory option with -t <target dir>"
+if [ -f "$_full_target" ]; then
+    echo "The target directory exists as a file.  This is not allowed.  You must pass a directory to put the resulting optimized image(s) in.  Please remove the file or use the option: -t <target dir>"
     exit 1
-elif [ -d "$IMAGE_TARGET_DIR" ]; then
-    debug "[$IMAGE_TARGET_DIR] exists; continuing..."
+elif [ -d "$_full_target" ]; then
+    debug "validation: [$_full_target] exists and is a directory; continuing..."
 else
-    echo "The target directory to store the optimized images [$IMAGE_TARGET_DIR] does not exist.  This could be becuase it is incorrect or becuse it doesn't exist yet. If it is incorrect, re-run and pass in the target directory option with -t <target dir path>"
+    echo "The target directory to store the optimized images [$_full_target] does not exist.  This could be becuase it is incorrect or becuse it doesn't exist yet. If it is incorrect, re-run and use the option: -t <target dir>"
     echo 'Do you to create the target directory for the optimized images and proceed? [y/N]'
     read _user_answer
     debug "user answer: [$_user_answer]"
@@ -244,140 +297,90 @@ else
         echo "done"
         exit 0
     fi
-    # they said yes so create the directory if we can
-    mkdir -p $IMAGE_TARGET_DIR
+    if [[ "$MAKE_CHANGES" == "true" ]]; then
+        # they said yes so create the directory if we can
+        mkdir -p $_full_target
+    fi
+fi
+# we do allow files for the source but if we do a diff then we need a directory since otherwise a diff does not make sense
+if [[ "$_diff" = "true" && ! -d "$_full_source" ]]; then
+    echo "You have asked to run conversions and optimizations on files that differ between the source and target directories, however, [$_full_source] is not a directory.  Please ensure you use a source directory when using the diff option."
+    exit 1
+fi
+# if we don't have an image source given or defaulted bail!
+if [ -z $_image_source ]; then
+	echo "You have requested to optimize images without giving a source or a defaulted source in the script.  There is nothing to do.  Add a default source or pass something as a parameter."
+	exit 0
 fi
 
+
+echo ' '
 # ----- validation rules before we start executing with options ------
 
-# initialize to the tmp dir to prevent and deletions to files we don't expect
-cd /tmp
-
-echo 'document base (source image directory): '$IMAGE_SOURCE_DIR
-echo 'IMAGE_TARGET_DIR: '$IMAGE_TARGET_DIR
-echo ' '
-debug '$_file: '$_file
-if [ -z $_file ]; then
-	debug "no file given; skipping..."
-else
-    echo "optimizing [$_file]..."
-    # the only difference is that we get the cwd and apply to the filename given
-    # get the current directory for use
-    curdir=$(pwd)
-    # find the docroot path and then get whats left
-    debug "curdir: $curdir"
-    debug `echo $curdir | sed -r "s $IMAGE_SOURCE_DIR  g"`
-    debug "$(echo $curdir | sed -r "s $IMAGE_SOURCE_DIR  g")"
-    debug "IMAGE_SOURCE_DIR: $IMAGE_SOURCE_DIR"
-    relpath="$(echo $curdir | sed -r "s $IMAGE_SOURCE_DIR  g")"
-    debug "relpath: $relpath"
-    # take this and append to the images directory
-    newpath=$IMAGE_TARGET_DIR$relpath
-    debug "newpath: $newpath"
-    
-    # execute the image magick and optimizer on the file
-    smartresize "$_file" 600 $newpath
-    image_optim -r --no-pngout $newpath/$_file
-    echo "done"
-    exit 0
-fi
-
-debug '$_diff: '$_diff
+# if we get a diff option remove all files removed from source and call smartresize and optimize on all files added to source
 if [ "$_diff" = "true" ]; then
-    debug 'deleting all images not in the docroot directory...'
-    delfiles=$(diff -r $IMAGE_SOURCE_DIR $IMAGE_TARGET_DIR | grep $IMAGE_TARGET_DIR | grep '^Only' | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$' | awk '{print $3$4}')
-    echo "files only in IMAGE_TARGET_DIR:"
+    debug '[diff] deleting all images not in the source directory but exist in the target directory...'
+    # diff might get a bit tricky we need to do string parsing to get our list and call remove for each file found
+    delfiles=$(diff -r $_full_source $_full_target | grep $_full_target | grep '^Only' | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$' | awk '{print $3$4}')
+    echo "removing all files only in the target image directory:"
     for df in $delfiles; do
         dtrim=${df%:*}  # retain the part before the colon
         ftrim=${df##*:} # retain the part after the last colon
-        echo "     deleting [$dtrim/$ftrim]"
-        rm $dtrim/$ftrim
+        if [[ "$MAKE_CHANGES" == "true" ]]; then
+            debug "[diff]     deleting [$dtrim/$ftrim]"
+            rm $dtrim/$ftrim
+        fi
+        echo "     deleted [$dtrim/$ftrim]"
     done
-	debug 'running conversion and optimization on all images in the image directory...'
-    newfiles=$(diff -r $IMAGE_SOURCE_DIR $IMAGE_TARGET_DIR | grep $IMAGE_SOURCE_DIR | grep '^Only' | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$' | awk '{print $3$4}')
-    echo "files only in IMAGE_SOURCE_DIR:"
+	debug '[diff] running conversion and optimization on all images not in the target directory...'
+	# diff might get a bit tricky we need to do string parsing to get our list and call smartresize for each file found
+    newfiles=$(diff -r $_full_source $_full_target | grep $_full_source | grep '^Only' | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$' | awk '{print $3$4}')
+    echo "converting and optimizing all files only in the source directory:"
     for nf in $newfiles; do
-        echo "     optimizing [$nf]"
-        # we need to trim our directory before sending
+        debug "[diff] optimizing [$nf]"
+        # we need to trim our directory before sending since diff has <directory>:<filename with extension> and we need to get rid of the colon and add a /
         dtrim=${nf%:*}  # retain the part before the colon
         ftrim=${nf##*:} # retain the part after the last colon
-        debug "dtrim: $dtrim"
-        debug "ftrim: $ftrim"
-        relpath="$(echo $dtrim | sed -r "s $IMAGE_SOURCE_DIR  g")"
-        newpath=$IMAGE_TARGET_DIR$relpath
-        debug "relpath: $relpath"
-        debug "newpath: $newpath"
-        cd $dtrim
-        mkdir -p $dtrim
-        # execute the image magick and optimizer on the file
-        smartresize "$ftrim" 600 $newpath
-        image_optim -r --no-pngout $newpath/$ftrim
+        debug "[diff] dtrim: $dtrim"
+        debug "[diff] ftrim: $ftrim"
+        debug "[diff] calling smartresize $dtrim/$ftrim"
+        smartresize "$dtrim/$ftrim"
+        if [[ "$MAKE_CHANGES" == "true" ]]; then
+            image_optim -r --no-pngout $_full_target/$ftrim
+        fi
 
     done
     echo "done"
     exit 0
 fi
-
-
-debug '$_all: '$_all
-debug '$_convert: '$_convert
+# do a check for removal first
+if [[ "$_remove_cache" == "true" ]]; then
+    debug "[remove cache] removing requested directory or file pattern [$_full_source]!"
+	remove_cache
+fi
+# if we get the all option just delete everything and set the convert and optimize options which should call smartresize for the source folder
 if [ "$_all" = "true" ]; then
+    debug "[all] removing requested directory or file pattern [$_full_source]!"
+    remove_cache
+#	debug '[all] wiping and converting the image directory...'
+#	if [[ "$MAKE_CHANGES" == "true" ]]; then
+#        cd $_full_target
+#        rm -rf *
+#    fi
+#    echo "[$_full_target] deleted.  recreating..."
     _convert="true"
     _optimize="true"
-	debug 'running conversion and optimization on the image directory...'
+	debug '[all] running conversion and optimization on the image directory...'
 fi
 if [ "$_convert" = "true" ]; then
-	debug 'wiping and converting the image directory...'
-    cd $IMAGE_TARGET_DIR
-	rm -rf *	
-	echo "images deleted.  recreating..."
-    cd $IMAGE_SOURCE_DIR
-    # smartresize2 ".*\.\(jpg\|jpeg\|png\|gif\|tiff\)$" 600 $IMAGE_TARGET_DIR
-    for d in $(find . -type d); do
-        adp=$(get_absolute_docroot_path $d)
-        echo $adp
-        # echo "absolute docroot path $adp"
-        aip=$(get_absolute_image_path $d)
-        # echo "absolute image path $aip"
-        mkdir -p $aip
-        cd $adp
-        # smartresize '*.{jpg|jpeg|gif|tiff|png}' 300 $aip
-        # smartresize '*.{jpg|jpeg|gif|tiff|png}' 600 $aip
-        # smartresize '*.{jpg|jpeg|gif|tiff|png}' 1200 $aip
-#        # echo "generating 300px images for all .jpg..."
-#        smartresize '*.jpg' 300 $aip
-#        # echo "generating 300px images for all .jpeg..."
-#        smartresize '*.jpeg' 300 $aip
-#        # echo "generating 300px images for all .gif..."
-#        smartresize '*.gif' 300 $aip
-#        # echo "generating 300px images for all .tiff..."
-#        smartresize '*.tiff' 300 $aip
-#        # echo "generating 300px images for all .png..."
-#        smartresize '*.png' 300 $aip
-        # echo "generating 600px images for all .jpg..."
-        smartresize '*.jpg' 600 $aip
-        # echo "generating 600px images for all .jpeg..."
-        smartresize '*.jpeg' 600 $aip
-        # echo "generating 600px images for all .gif..."
-        smartresize '*.gif' 600 $aip
-        # echo "generating 600px images for all .tiff..."
-        smartresize '*.tiff' 600 $aip
-        # echo "generating 600px images for all .png..."
-        smartresize '*.png' 600 $aip
-#        # echo "generating 1200px images for all .jpg..."
-#        smartresize '*.jpg' 1200 $aip
-#        # echo "generating 1200px images for all .jpeg..."
-#        smartresize '*.jpeg' 1200 $aip
-#        # echo "generating 1200px images for all .gif..."
-#        smartresize '*.gif' 1200 $aip
-#        # echo "generating 1200px images for all .tiff..."
-#        smartresize '*.tiff' 1200 $aip
-#        # echo "generating 1200px images for all .png..."
-#        smartresize '*.png' 1200 $aip      
-   done
-    # smartresize2 '*.{jpg|jpeg|gif|tiff|png}' 600 $IMAGE_TARGET_DIR
-    echo "done converting"
-    # echo "_optimize: $_optimize"
+
+	# call smartresize with our source parameter
+	smartresize $_full_source
+
+#    cd $_image_source
+#    # smartresize2 ".*\.\(jpg\|jpeg\|png\|gif\|tiff\)$" 600 $_full_target
+    # smartresize2 '*.{jpg|jpeg|gif|tiff|png}' 600 $_full_target
+    debug "[all] done converting"
     if [ "$_optimize" != "true" ]; then
         exit 0
     fi
@@ -385,8 +388,9 @@ fi
 
 debug '$_optimize: '$_optimize
 if [ "$_optimize" = "true" ]; then
-    cd $IMAGE_TARGET_DIR
-    image_optim -r --no-pngout .
+    if [[ "$MAKE_CHANGES" == "true" ]]; then
+        image_optim -r --no-pngout $_full_target
+    fi
     echo "done optimizing"
     exit 0
 fi

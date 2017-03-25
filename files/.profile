@@ -16,6 +16,9 @@ if [ -n "$BASH_VERSION" ]; then
     fi
 fi
 
+# export our virtualenv python setting so it knows to use python3
+export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3
+
 # create shortcuts for base dirs and make sure base directories are created
 export SERVER_HOME=$HOME/server
 export WEBSITE_HOME=$SERVER_HOME/website
@@ -32,3 +35,6 @@ PATH="$HOME/bin:$HOME/.local/bin:$PATH"
 PATH=$PATH:$SERVER_HOME/scripts:$VAGRANT_HOME/scripts
 
 cd $WEBSITE_HOME
+# try to workon env for setting up python ignoring errors
+source /usr/local/bin/virtualenvwrapper.sh >/dev/null 2>&1
+workon env >/dev/null 2>&1
