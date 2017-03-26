@@ -1,6 +1,8 @@
 #!/bin/bash
 # script to build a virtual python envrionment from the requirements.txt file on the server
 
+export CC=/usr/bin/llvm-gcc
+
 # Initialize our constants:
 MAKE_CHANGES=true
 
@@ -94,6 +96,7 @@ else
         echo "      Execute 'vagrant ssh' from the vagrant directory then execute 'update_env' from inside the virtual machine.  Execute 'exit' to leave the virtual machine and run this script again."
         echo ""
         echo 'Are you sure you want to delete and re-create the virtual environment from the requirments.txt file at this time? [y/N]'
+        echo "NOTE: you must not be working in the env directory to continue (includes IDE).  If you do you will get errors.  You can simply run deactivate or close your IDE and run the script again."
         read _user_answer
         debug "user answer: [$_user_answer]"
         echo ""
@@ -102,11 +105,17 @@ else
             exit 0
         fi
         if [[ "$MAKE_CHANGES" == "true" ]]; then
-            deactivate
             rmvirtualenv env
         fi
     fi
     if [[ "$MAKE_CHANGES" == "true" ]]; then
+        # for some reason I can't get uwsgi to install on the host so I am going to comment it out if I find it
+        # also, osx sed sucks so we have to use homebrew install gnu-sed and then use the gsed command; shouldn't affect anthing else
+        if [[ "$(which gsed)" == "" ]]; then
+            sed -i 's/^uWSGI\=\=/\#uWSGI\=\=/' $_requirements_file
+        else
+            gsed -i 's/^uWSGI\=\=/\#uWSGI\=\=/' $_requirements_file
+        fi
         pip3 install virtualenv
         mkvirtualenv --python=/usr/local/bin/python3 --no-site-packages env
         workon env
