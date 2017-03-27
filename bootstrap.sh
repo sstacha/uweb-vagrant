@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # common functions for routing and error handling
 yell() { echo "$0: $*" >&2; }
 die() { yell "$*"; exit 111; }
@@ -183,6 +185,7 @@ su ubuntu <<'EOF'
 EOF
         # test uwsgi by command line...
         # uwsgi --http :8080 --chdir /home/ubuntu/website -w docroot.wsgi
+        # debug log: journalctl -xe
         mkdir -p /etc/uwsgi/sites
         mkdir -p /run/uwsgi
         chown ubuntu:www-data /run/uwsgi
