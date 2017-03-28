@@ -3,7 +3,7 @@ Description=UberWeb CMS
 After=syslog.target network.target
 
 [Service]
-ExecStart=/usr/bin/python3 /home/ubuntu/server/website/manage.py runserver 0.0.0.0:8000
+ExecStart=/home/ubuntu/.virtualenvs/env/bin/python /home/ubuntu/server/website/manage.py runserver 0.0.0.0:8000
 # Type=forking
 WorkingDirectory=/home/ubuntu/server/website
 Restart=always

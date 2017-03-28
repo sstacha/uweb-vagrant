@@ -3,9 +3,9 @@ Description=uWSGI Emperor service
 After=syslog.target
 
 [Service]
-# ExecStartPre=/bin/bash -c 'mkdir -p /run/uwsgi; chown ubuntu:www-data /run/uwsgi'
-ExecStart=/usr/local/bin/uwsgi --emperor /etc/uwsgi/sites
-# WorkingDirectory=/home/ubuntu/server/website
+ExecStartPre=/bin/bash -c 'sudo mkdir -p /run/uwsgi; sudo chown ubuntu:www-data /run/uwsgi'
+ExecStart=/home/ubuntu/.virtualenvs/env/bin/uwsgi --emperor /etc/uwsgi/sites
+WorkingDirectory=/home/ubuntu/server/website
 Restart=always
 StandardOutput=syslog
 StandardError=syslog

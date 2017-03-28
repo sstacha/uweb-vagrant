@@ -116,88 +116,26 @@ gem install image_optim
 
 # found that ubuntu user and _developer group should own everything under /usr/local/ for python an node stuff after they are installed
 chown -R ubuntu:_developer /usr/local/
-# now the virtualenv stuff can write to the python directories as it needs to
-su ubuntu <<'EOF'
-pip3 install virtualenvwrapper
 
-# create our virtual envrionment if it does not exist (for re-provisioning again)
-source /usr/local/bin/virtualenvwrapper.sh
-_tmpls=$(lsvirtualenv -b | grep "^env$")
-EOF
-echo "tmpls: $_tmpls"
-_makeenv=true
-if [[ "$_tmpls" != "" ]]; then
-    # if we have a requirements.txt file ask if we want to re-provision our python environment
-    echo "You requested to re-provision the machine. A virtual envrionment already exists."
-    echo "NOTE: If you have done any pip installs from inside the virtual machine you may loose dependencies"
-    echo "     If in doubt say no"
-    echo ""
-    echo 'Are you sure you want to delete and re-create the virtual environment from the requirments.txt file at this time? [y/N]'
-    read _user_answer
-    debug "user answer: [$_user_answer]"
-    echo ""
-    if [[ "$_user_answer" != "y" && "$_user_answer" != "Y" ]]; then
-        echo "skipping python envrionment provisioning..."
-        _makeenv=false
-    else
-su ubuntu <<'EOF'
-        deactivate >/dev/null 2>&1
-        rmvirtualenv env
-EOF
-    fi
-fi
-if [[ "$_makeenv" == "true" ]]; then
-su ubuntu <<'EOF'
-    source /usr/local/bin/virtualenvwrapper.sh
-    # provision the new environment and load the requirements.txt again if we have one
-    pip3 install virtualenv
-    mkvirtualenv --python=/usr/bin/python3 --no-site-packages env
-EOF
+# have root setup our direcotries for uwsgi and place the config file if we  do not have a website/manage.py
+if [ ! -f $WEBSITE_HOME/"manage.py" ]; then
+    # test uwsgi by command line...
+    # uwsgi --http :8080 --chdir /home/ubuntu/server/website --home /home/ubuntu/.virtualenvs/env -w docroot.wsgi
+    # debug log: journalctl -xe
+    mkdir -p /etc/uwsgi/sites
+    mkdir -p /run/uwsgi
+    chown ubuntu:www-data /run/uwsgi
+    chmod g+w /run/uwsgi
+    echo "should have created and modified permissions for /run/uwsgi"
+    echo "$(ls -al /run/)"
+    # copy the uwsgi config in place
+    cp -f $VAGRANT_HOME/files/uwsgi_uweb.ini /etc/uwsgi/sites/uwsgi_uweb.ini
+    echo "**** finished copying everything for uwsgi; about to run script as ubuntu for installs"
 fi
 
-# at this point we should always have an environment so lets start it up for other installs
-su ubuntu workon env
-
-# install django required files or a base install
-if [ -f "$WEBSITE_HOME/requirements.txt" ]; then
-    echo "requirements.txt exists; installing or re-installing modules from it..."
-su ubuntu <<'EOF'
-    workon env
-    su ubuntu pip3 install -r $WEBSITE_HOME/requirements.txt
-EOF
-else
-    echo "requirements.txt does not exist; installing base django modules..."
-    cd $WEBSITE_HOME
-    if [ -f "manage.py" ]; then
-        echo "manage.py already exists: skipping project install..."
-    else
-su ubuntu <<'EOF'
-        source /usr/local/bin/virtualenvwrapper.sh
-        workon env
-        pip3 install --upgrade pip
-        pip3 install django
-        django-admin startproject docroot .
-        python3 manage.py migrate
-        echo "from django.contrib.auth.models import User; User.objects.create_superuser('admin@example.com', 'admin', 'admin')" | python3 manage.py shell
-        sed -i 's/ALLOWED_HOSTS = \[\]/ALLOWED_HOSTS = \[\"\*\"\]/' docroot/settings.py
-        echo 'STATIC_ROOT = os.path.join(BASE_DIR, "static/")' >> docroot/settings.py
-        pip3 install uwsgi
-EOF
-        # test uwsgi by command line...
-        # uwsgi --http :8080 --chdir /home/ubuntu/website -w docroot.wsgi
-        # debug log: journalctl -xe
-        mkdir -p /etc/uwsgi/sites
-        mkdir -p /run/uwsgi
-        chown ubuntu:www-data /run/uwsgi
-        chmod g+w /run/uwsgi
-        echo "should have created and modified permissions for /run/uwsgi"
-        echo "$(ls -al /run/)"
-        # copy the uwsgi config in place
-        cp -f $VAGRANT_HOME/files/uwsgi_uweb.ini /etc/uwsgi/sites/uwsgi_uweb.ini
-        # create an initial requirements.txt file for the host to build a virtual envrionment from
-        su ubuntu $VAGRANT_HOME/scripts/update_env
-    fi
-fi
+# attempt to call our script as ubuntu user and set up the virtualenv with stuff if needed
+su ubuntu $VAGRANT_HOME/install_uweb.sh
+echo "**** finished run script as ubuntu for installs"
 
 # install grunt globally for our image handling and other internal processing 
 #npm install -g grunt-cli
@@ -209,7 +147,8 @@ fi
 
 # copy over the service files to the systemd directory for starting our uweb application and any other services
 # uweb.service: uweb django application at boot
-# uwsgi.service: nginx -> django process at boot 
+# uwsgi.service: nginx -> django process at boot
+echo "**** setting up and turning on services"
 cp -f $VAGRANT_HOME/files/uweb.service /etc/systemd/system/uweb.service
 cp -f $VAGRANT_HOME/files/uwsgi.service /etc/systemd/system/uwsgi.service
 
