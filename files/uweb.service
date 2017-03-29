@@ -1,6 +1,6 @@
 [Unit]
 Description=UberWeb CMS
-After=syslog.target network.target
+After=syslog.target network.target nginx.service vagrant.mount
 
 [Service]
 ExecStart=/home/ubuntu/.virtualenvs/env/bin/python /home/ubuntu/server/website/manage.py runserver 0.0.0.0:8000
@@ -16,3 +16,4 @@ Environment=NODE_ENV=dev
 
 [Install]
 WantedBy=default.target
+#WantedBy=vagrant.mount
