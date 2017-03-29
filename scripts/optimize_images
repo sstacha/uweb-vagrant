@@ -16,10 +16,10 @@ IMAGE_FILE_WIDTH_SIZES=""
 
 # Initialize our variables:
 # default source and target dirs; change this for your environment
-# _image_source='/home/ubuntu/server/website/docroot/templates/docroot'
-# _image_target='/home/ubuntu/server/website/images'
-_image_source='/vagrant/test_images'
-_image_target='/vagrant/test_optimized'
+_image_source='/home/ubuntu/server/website/docroot/files'
+_image_target='/home/ubuntu/server/website/images'
+#_image_source='/vagrant/test_images'
+#_image_target='/vagrant/test_optimized'
 # option choices
 _all=false
 _remove_cache=false
