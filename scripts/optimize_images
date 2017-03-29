@@ -98,7 +98,6 @@ mogrify_directory() {
 
     md_directory=$(strip_slash $md_directory)
     # when we are asked to mogrify a directory we will do so for each type we support
-    # per mike: try to create each one on one line then pass it all to one mogrify command instead of one per type
     for md_ext in $IMAGE_FILE_EXTENSIONS; do
         # first call mogrify for each extension without resizing as the default
         debug "[mogrify_directory] calling mogrify wrapper $md_directory/$md_ext $md_target_dir"
@@ -120,28 +119,6 @@ mogrify_directory() {
             fi
         done
     done
-#    # when we are asked to mogrify a directory we will do so for each type we support
-#    for md_ext in $IMAGE_FILE_EXTENSIONS; do
-#        # first call mogrify for each extension without resizing as the default
-#        debug "[mogrify_directory] calling mogrify wrapper $md_directory/$md_ext $md_target_dir"
-#        mogrify_wrapper "$md_directory/$md_ext" $md_target_dir $md_size $p_ext
-#        if [[ "$ENABLE_WEBP" == "true" ]]; then
-#            # do the same thing for webp
-#            mogrify_wrapper "$md_directory/$md_ext" $md_target_dir "" "webp $p_ext"
-#        fi
-#        for md_size in $IMAGE_FILE_WIDTH_SIZES; do
-#            md_pattern="$md_directory/$md_ext"
-#            p_ext="${md_ext##*.}"
-#            p_ext="$md_size.$p_ext"
-#            # then call mogrify for each file size we want in our src selections
-#            debug "[mogrify_directory] calling mogrify wrapper $md_pattern $md_target_dir $md_size $p_ext"
-#            mogrify_wrapper $md_pattern $md_target_dir $md_size $p_ext
-#            if [[ "$ENABLE_WEBP" == "true" ]]; then
-#                # do the same thing for webp
-#                mogrify_wrapper $md_pattern $md_target_dir $md_size "webp $p_ext"
-#            fi
-#        done
-#    done
 
 }
 # will call mogrify for each condition for each file passed
