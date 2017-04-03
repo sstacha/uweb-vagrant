@@ -30,7 +30,7 @@ if [[ "$_tmpls" != "" ]]; then
     echo ""
     echo 'Are you sure you want to delete and re-create the virtual environment from the requirments.txt file at this time? [y/N]'
     read _user_answer
-    debug "user answer: [$_user_answer]"
+    # echo "user answer: [$_user_answer]"
     echo ""
     if [[ "$_user_answer" != "y" && "$_user_answer" != "Y" ]]; then
         echo "skipping python envrionment provisioning..."
@@ -76,21 +76,21 @@ else
         # ours will be copied in next; which will insert the uweb application into the mix
         mv $WEBSITE_HOME/docroot/settings.py $WEBSITE_HOME/docroot/settings_common.py
         # copy all our default directories and files from the vagrant install folder to
-        cp -R $VAGRANT_HOME/files/docroot/ $WEBSITE_HOME/docroot/
+        cp -R $VAGRANT_HOME/files/docroot/ $WEBSITE_HOME/
         # finally, ask if they want some sample data created
-        echo "There are a few sample files that can be copied into the docroot if you would like.  These can easily be"
-        echo "removed later.  See the getting started tutorial @ https://www.ubercode.io/uweb/tutorials for more info."
-        echo "NOTE:  If in doubt probably best to say yes (y)"
-        echo ""
-        echo 'Do you want to copy example files into the installed docroot? [Y/n]'
-        read _user_answer
-        debug "user answer: [$_user_answer]"
-        echo ""
-        if [[ "$_user_answer" != "y" && "$_user_answer" != "Y" && "$_user_answer" != "" ]]; then
-            echo "copying example files..."
-            cp -R $VAGRANT_HOME/files/docroot_examples/ $WEBSITE_HOME/docroot/
-        else
-            echo "skipping example files..."
-        fi
+#        echo "There are a few sample files that can be copied into the docroot if you would like.  These can easily be"
+#        echo "removed later.  See the getting started tutorial @ https://www.ubercode.io/uweb/tutorials for more info."
+#        echo "NOTE:  If in doubt probably best to say yes (y)"
+#        echo ""
+#        echo 'Do you want to copy example files into the installed docroot? [Y/n]'
+#        read _user_answer
+#        # echo "user answer: [$_user_answer]"
+#        echo ""
+#        if [[ "$_user_answer" != "y" && "$_user_answer" != "Y" && "$_user_answer" != "" ]]; then
+#            echo "copying example files..."
+#            cp -R $VAGRANT_HOME/files/docroot_examples/ $WEBSITE_HOME/docroot/
+#        else
+#            echo "skipping example files..."
+#        fi
     fi
 fi

@@ -151,11 +151,13 @@ echo "**** finished run script as ubuntu for installs"
 echo "**** setting up and turning on services"
 cp -f $VAGRANT_HOME/files/uweb.service /etc/systemd/system/uweb.service
 cp -f $VAGRANT_HOME/files/uwsgi.service /etc/systemd/system/uwsgi.service
+echo "**** setting up udev trigger for services"
+# cp -f $VAGRANT_HOME/files/50-vagrant-mount-rules.sh /etc/udev/rules.d/50-vagrant-mount.rules
 
 # start our cms service and print the status to console
 systemctl enable uweb
-systemctl start uweb
-systemctl status uweb
+#systemctl start uweb
+#systemctl status uweb
 
 # start our uwsgi service and print the status to console
 systemctl enable uwsgi
