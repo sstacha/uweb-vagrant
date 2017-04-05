@@ -70,19 +70,27 @@ chmod 775 $SERVER_HOME/archive/dated
 mkdir -p $SERVER_HOME/archive/current
 chown ubuntu:ubuntu $SERVER_HOME/archive/current
 chmod 775 $SERVER_HOME/archive/current
+mkdir -p $UBUNTU_HOME/.ssh/
+# consider locking this down to 700 after we get it working (really no one but ubuntu should be able to see the keys)
+chown ubuntu:ubuntu $UBUNTU_HOME/.ssh/
+chmod 755 $UBUNTU_HOME/.ssh/
 
 # make sure we are dealing with the latest stuff
 try apt-get update
 try apt-get -y upgrade
 
 # install all "basic applications and dev dependencies" we need
-try apt-get install -y build-essential git nginx lynx imagemagick
+try apt-get install -y build-essential git nginx lynx imagemagick nodejs
 # try to install nodejs from source so we can use the version we want in our vm (supported)
-X_ARCH="$(getconf LONG_BIT)"
-echo "building for arch " + $X_ARCH
-wget https://nodejs.org/dist/v7.5.0/node-v7.5.0-linux-x$X_ARCH.tar.xz
-tar -C /usr/local --strip-components 1 -xJf node-v7.5.0-linux-x$X_ARCH.tar.xz
-rm node-v7.5.0-linux-x$X_ARCH.tar.xz
+# NOTE: this was required when this was a node project; now it is django we still need for images but we can use an older version
+#   that is maintained by the package manager
+# ----- how to build from source -----
+#X_ARCH="$(getconf LONG_BIT)"
+#echo "building for arch " + $X_ARCH
+#wget https://nodejs.org/dist/v7.5.0/node-v7.5.0-linux-x$X_ARCH.tar.xz
+#tar -C /usr/local --strip-components 1 -xJf node-v7.5.0-linux-x$X_ARCH.tar.xz
+#rm node-v7.5.0-linux-x$X_ARCH.tar.xz
+# ----- how to build from source -----
 
 # install all python stuff for django (should come installed with latest 16.04)
 try apt-get install -y libffi-dev python3-dev
@@ -151,7 +159,7 @@ echo "**** finished run script as ubuntu for installs"
 echo "**** setting up and turning on services"
 cp -f $VAGRANT_HOME/files/uweb.service /etc/systemd/system/uweb.service
 cp -f $VAGRANT_HOME/files/uwsgi.service /etc/systemd/system/uwsgi.service
-echo "**** setting up udev trigger for services"
+# echo "**** setting up udev trigger for services"
 # cp -f $VAGRANT_HOME/files/50-vagrant-mount-rules.sh /etc/udev/rules.d/50-vagrant-mount.rules
 
 # start our cms service and print the status to console

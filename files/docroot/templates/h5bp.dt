@@ -1,0 +1,40 @@
+<!doctype html>
+<html class="no-js" lang="">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <title>{% block title %}{% endblock %}</title>
+        {# meta info will be added at the page level to deal with multiple title block definitions #}
+        {% block meta %}{% endblock %}
+
+        <link rel="apple-touch-icon" href="/h5bp/apple-touch-icon.png">
+        <!-- Place favicon.ico in the root directory -->
+
+        <link rel="stylesheet" href="/h5bp/css/normalize.css">
+        <link rel="stylesheet" href="/h5bp/css/main.css">
+        <script src="/h5bp/js/vendor/modernizr-2.8.3.min.js"></script>
+
+        {% block layout_css %}{% endblock %}
+        {% block css %}{% endblock %}
+    </head>
+    <body>
+        <!--[if lt IE 8]>
+            <p class="browserupgrade">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
+        <![endif]-->
+
+        {# -- Add your site or application content here -- #}
+        {% block content %}
+            <p>Hello world! This is HTML5 Boilerplate.</p>
+        {% endblock %}
+
+
+        <script src="https://code.jquery.com/jquery-1.12.0.min.js"></script>
+        <script>window.jQuery || document.write('<script src="h5bp/js/vendor/jquery-1.12.0.min.js"><\/script>')</script>
+        <script src="/h5bp/js/plugins.js"></script>
+        <script src="/h5bp/js/main.js"></script>
+
+        {% block layout_js %}{% endblock %}
+        {% block js %}{% endblock %}
+
+    </body>
+</html>

@@ -13,9 +13,11 @@ from .settings_common import *
 # add our different roots for static files to be served up
 IMAGES_ROOT = os.path.join(BASE_DIR, "images/")
 CACHED_ROOT = os.path.join(BASE_DIR, "cache/")
+DOCROOT_ROOT = os.path.join(BASE_DIR, "docroot/files/")
 STATICFILES_DIRS = (
     IMAGES_ROOT,
     CACHED_ROOT,
+    DOCROOT_ROOT,
 )
 
 # add our docroot application to the installed apps and middleware initializations

@@ -12,6 +12,20 @@ export VIRTUALENVWRAPPER_PIP=pip3
 
 # now the virtualenv stuff can write to the python directories as it needs to
 echo whoami
+
+echo "installing public ssh keys (should have been set up by provisioner) in /home/ubuntu/.ssh/me.pub"
+echo ""
+# copy over our hosts ssh keys (copied as /home/ubuntu/.ssh/me.pub) if we haven't done it before
+if [[ -f $UBUNTU_HOME/.ssh/me.pub && -f $UBUNTU_HOME/.ssh/authorized_keys ]]; then
+  # append our host public key to the vm authorized keys file only once
+  TEMP_HOST_KEY=$(cat $UBUNTU_HOME/.ssh/me.pub)
+  if [[ $(cat $UBUNTU_HOME/.ssh/authorized_keys | grep "$TEMP_HOST_KEY" | wc -l) == 0 ]]; then
+    cat $UBUNTU_HOME/.ssh/me.pub >> $UBUNTU_HOME/.ssh/authorized_keys
+  else
+    echo "ssh keys were previously appended not appending to ~/.ssh/authorized_keys"
+  fi
+fi
+
 echo "installing virtualenv and setting up base django project"
 echo ""
 

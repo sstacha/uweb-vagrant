@@ -1,0 +1,8 @@
+{% extends "bootstrap.dt" %}
+
+{% block meta %}
+        {# -- adding meta title to boilerplate for search engine overrides per page -- #}
+        <meta name="title" content="{% block title %}{% endblock %}" />
+        <meta name="description" content="{% block description %}{% endblock %}" />
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+{% endblock %}

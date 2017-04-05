@@ -1,1 +1,8 @@
-Success from index.dt
+{% extends "page.dt" %}
+
+{% block title %}Test Title{% endblock %}
+{% block description %}Test Description{% endblock %}
+
+{% block content %}
+    Test Content
+{% endblock %}
