@@ -13,7 +13,7 @@ debug () {
         fi
 }
 show_help() {
-    echo "usage: archive [-h?][-v]"
+    echo "usage: create_env [-h?][-v]"
     echo " ex: create_env -v"
     echo "     -h or ?: show usage help"
     echo "     -v: show verbose logging"
@@ -57,42 +57,31 @@ debug ""
 debug "attempting to update virtualenv and then create an env"
 debug ""
 
-_script_dir="$(get_script_directory)"
-echo "script directory: $_script_dir"
-_script_len=${#_script_dir}
-debug "script len: $_script_len"
-_rel_vagrant="/vagrant/scripts_host"
-_rel_len=${#_rel_vagrant}
-debug "rel len: $_rel_len"
-UWEB_HOME=${_script_dir:0:(_script_len - _rel_len)}
-debug "UWEB_HOME: $UWEB_HOME"
-VAGRANT_HOME="$UWEB_HOME/vagrant"
-debug "VAGRANT_HOME: $VAGRANT_HOME"
-WEBSITE_HOME="$UWEB_HOME/server/website"
-debug "WEBSITE_HOME: $WEBSITE_HOME"
-_env_dir="$UWEB_HOME/env"
-echo "env directory: $_env_dir"
-_requirements_file="$WEBSITE_HOME/requirements.txt"
-echo "requirements file: $_requirements_file"
+# NOTE: in the future we may allow an _arg to point to ANY requirements.txt file instead of the built in one...
+
+# for now use the relative location for the script we are executing...
+_SCRIPT_HOME="$(get_script_directory)"
+debug "script directory: $_SCRIPT_HOME"
+_REQUIREMENTS_HOME=$(dirname $(dirname $_SCRIPT_HOME))/server/website
+debug "requirements directory: $_REQUIREMENTS_HOME"
+_REQUIREMENTS_FILE=$_REQUIREMENTS_HOME/requirements.txt
+debug "requirements file: $_REQUIREMENTS_FILE"
 echo ""
 
-if [[ -z $WEBSITE_HOME ]]; then
-    echo "You requested to create a virtual envrionment but there is not a WEBSITE_HOME environment variable defined.  This should not happen unless the virstual machine was not properly provisioned.  Re-provision the virtual machine and try again."
-    exit 1
-elif [[ ! -f "$_requirements_file" ]]; then
-    echo "You requested to create a virtual python environment but there is not a WEBSITE_HOME/requirements.txt file.  Execute 'vagrant ssh' from the vagrant directory then execute 'update_env' to create the requirement.txt file from inside the virtual machine.  Execute 'exit' to leave the virtual machine and run this script again."
+if [[ ! -f "$_REQUIREMENTS_FILE" ]]; then
+    echo "You requested to create a virtual python environment but [$_REQUIREMENTS_FILE] does not exist.  Execute 'vagrant ssh' from the vagrant directory then execute 'update_env' to create the requirement.txt file from inside the virtual machine.  Execute 'exit' to leave the virtual machine and run this script again."
     exit 1
 else
     # we might already have an environment; if so prompt then delete and re-create
     source /usr/local/bin/virtualenvwrapper.sh
-    _tmpls=$(lsvirtualenv -b | grep "^env$")
-    echo "tmpls: $_tmpls"
-    if [[ "$_tmpls" != "" ]]; then
-        echo "I tried to create a python virtual envrionment [env] based on the virtural machines dependencies [$_requirements_file].  However, a virtual envrionment already exists."
+    _ENVIRONMENT_CHECK=$(lsvirtualenv -b | grep "^env$")
+    debug "lsvirtualenv grep output: $_ENVIRONMENT_CHECK"
+    if [[ "$_ENVIRONMENT_CHECK" != "" ]]; then
+        echo "I tried to create a python virtual envrionment [env] based on the virtural machines dependencies [$_REQUIREMENTS_FILE].  However, a virtual envrionment [env] already exists."
         echo "NOTE: If you have done any pip installs from inside the virtual machine you will need to update the requirements.txt file"
         echo ""
         echo "NOTE: To do so: "
-        echo "      Manually edit the [$_requirements_file] file and add the new libraries or..."
+        echo "      Manually edit the [$_REQUIREMENTS_FILE] file and add the new libraries or..."
         echo "      Execute 'vagrant ssh' from the vagrant directory then execute 'update_env' from inside the virtual machine.  Execute 'exit' to leave the virtual machine and run this script again."
         echo ""
         echo 'Are you sure you want to delete and re-create the virtual environment from the requirments.txt file at this time? [y/N]'
@@ -112,18 +101,18 @@ else
         # for some reason I can't get uwsgi to install on the host so I am going to comment it out if I find it
         # also, osx sed sucks so we have to use homebrew install gnu-sed and then use the gsed command; shouldn't affect anthing else
         if [[ "$(which gsed)" == "" ]]; then
-            sed -i 's/^uWSGI\=\=/\#uWSGI\=\=/' $_requirements_file
+            sed -i 's/^uWSGI\=\=/\#uWSGI\=\=/' $_REQUIREMENTS_FILE
         else
-            gsed -i 's/^uWSGI\=\=/\#uWSGI\=\=/' $_requirements_file
+            gsed -i 's/^uWSGI\=\=/\#uWSGI\=\=/' $_REQUIREMENTS_FILE
         fi
         pip3 install virtualenv
         mkvirtualenv --python=/usr/local/bin/python3 --no-site-packages env
         workon env
-        pip3 install -r $_requirements_file
+        pip3 install -r $_REQUIREMENTS_FILE
         deactivate
     fi
     echo "done"
     workon env
-    echo "To develop using the same dependencies as your virtual machine point your ide to [$VIRTUAL_ENV/bin/python3]"
+    echo "To develop using the same dependencies as your virtual machine point your ide to [$VIRTUAL_ENV]"
     deactivate
 fi
