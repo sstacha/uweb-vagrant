@@ -74,7 +74,7 @@ if [[ ! -f "$_REQUIREMENTS_FILE" ]]; then
 else
     # we might already have an environment; if so prompt then delete and re-create
     source /usr/local/bin/virtualenvwrapper.sh
-    _ENVIRONMENT_CHECK=$(lsvirtualenv -b | grep "^env$")
+    _ENVIRONMENT_CHECK=$(lsvirtualenv -b | grep "^env_uweb$")
     debug "lsvirtualenv grep output: $_ENVIRONMENT_CHECK"
     if [[ "$_ENVIRONMENT_CHECK" != "" ]]; then
         echo "I tried to create a python virtual envrionment [env] based on the virtural machines dependencies [$_REQUIREMENTS_FILE].  However, a virtual envrionment [env] already exists."
@@ -94,7 +94,7 @@ else
             exit 0
         fi
         if [[ "$MAKE_CHANGES" == "true" ]]; then
-            rmvirtualenv env
+            rmvirtualenv env_uweb
         fi
     fi
     if [[ "$MAKE_CHANGES" == "true" ]]; then
@@ -106,13 +106,13 @@ else
             gsed -i 's/^uWSGI\=\=/\#uWSGI\=\=/' $_REQUIREMENTS_FILE
         fi
         pip3 install virtualenv
-        mkvirtualenv --python=/usr/local/bin/python3 --no-site-packages env
-        workon env
+        mkvirtualenv --python=/usr/local/bin/python3 --no-site-packages env_udev
+        workon env_udev
         pip3 install -r $_REQUIREMENTS_FILE
         deactivate
     fi
     echo "done"
-    workon env
+    workon env_udev
     echo "To develop using the same dependencies as your virtual machine point your ide to [$VIRTUAL_ENV]"
     deactivate
 fi
