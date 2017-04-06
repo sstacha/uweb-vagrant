@@ -106,13 +106,13 @@ else
             gsed -i 's/^uWSGI\=\=/\#uWSGI\=\=/' $_REQUIREMENTS_FILE
         fi
         pip3 install virtualenv
-        mkvirtualenv --python=/usr/local/bin/python3 --no-site-packages env_udev
-        workon env_udev
+        mkvirtualenv --python=/usr/local/bin/python3 --no-site-packages env_uweb
+        workon env_uweb
         pip3 install -r $_REQUIREMENTS_FILE
         deactivate
     fi
     echo "done"
-    workon env_udev
+    workon env_uweb
     echo "To develop using the same dependencies as your virtual machine point your ide to [$VIRTUAL_ENV]"
     deactivate
 fi
