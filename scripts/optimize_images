@@ -45,9 +45,9 @@ _full_source_dir=""
 _full_target_dir=""
 
 debug () {
-		if [ "$_log_verbose" = "true" ] ; then
-        	echo "$1";
-        fi
+    if [ "$_log_verbose" = "true" ] ; then
+        echo "$1";
+    fi
 }
 
 debug_variables() {
@@ -69,9 +69,9 @@ debug_variables() {
     debug "full source_dir: $_full_source_dir"
     debug "full target_pattern: $_full_target_pattern"
     debug "full_target_dir: $_full_target_dir"
+    debug ""
     debug "constants: "
     debug "-----------"
-    debug ""
     debug "MAKE_CHANGES: $MAKE_CHANGES"
     debug "IGNORE_FILES: $IGNORE_FILES"
     debug "IMAGE_MAX_WIDTH: $IMAGE_MAX_WIDTH"
