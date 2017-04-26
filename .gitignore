@@ -9,3 +9,5 @@ env/*
 # not sure if we should ignore test folders but doing so for now
 test_images/*
 test_optimized/*
+
+.idea/*
