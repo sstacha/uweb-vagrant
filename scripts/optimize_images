@@ -28,8 +28,10 @@ IMAGE_FILE_WIDTH_SIZES=""
 # _image_source='/home/ubuntu/server/website/docroot/'
 # _image_target='/home/ubuntu/server/website/images'
 # _image_source='/Users/sstacha/dev/projects/spe/vagrant/ubuntu/djangocms/website_content/media'
-_image_source='/Users/sstacha/dev/projects/spe/test_images/'
-_image_target='/Users/sstacha/dev/projects/spe/optimized_images'
+#_image_source='/Users/sstacha/dev/projects/spe/test_images/'
+#_image_target='/Users/sstacha/dev/projects/spe/optimized_images'
+_image_source='/tmp/test/source'
+_image_target='/tmp/test/dest'
 # option choices
 _all=false
 _remove_cache=false
@@ -46,6 +48,39 @@ debug () {
 		if [ "$_log_verbose" = "true" ] ; then
         	echo "$1";
         fi
+}
+
+debug_variables() {
+    debug ""
+    debug "options: "
+    debug "---------"
+    debug "all:$_all"
+    debug "remove cache:$_remove_cache"
+    debug "optimize:$_optimize"
+    debug "diff:$_diff"
+    debug "verbose logging:$_log_verbose"
+    debug "argument: $@"
+    debug ""
+    debug "path vars: "
+    debug "-----------"
+    debug "_image_source:$_image_source"
+    debug "_image_target:$_image_target"
+    debug "full source_pattern: $_full_source_pattern"
+    debug "full source_dir: $_full_source_dir"
+    debug "full target_pattern: $_full_target_pattern"
+    debug "full_target_dir: $_full_target_dir"
+    debug "constants: "
+    debug "-----------"
+    debug ""
+    debug "MAKE_CHANGES: $MAKE_CHANGES"
+    debug "IGNORE_FILES: $IGNORE_FILES"
+    debug "IMAGE_MAX_WIDTH: $IMAGE_MAX_WIDTH"
+    debug "IMAGE_DEFAULT_WIDTH: $IMAGE_DEFAULT_WIDTH"
+    debug "USE_POSTERIZE: $USE_POSTERIZE"
+    debug "USE_IMAGE_OPTIM_DEFAULT: $USE_IMAGE_OPTIM_DEFAULT"
+    debug "USE_SVGO: $USE_SVGO"
+    debug "ENABLE_WEBP: $ENABLE_WEBP"
+    debug ""
 }
 
 show_help() {
@@ -390,6 +425,9 @@ if [[ $_optarg ]]; then
 else
     debug "calling get_abs $_image_source"
     _full_source_pattern=$(get_abs $_image_source)
+    debug "get_source_abs returned [$_full_source_pattern]"
+    _full_target_pattern=$(get_target_abs $_target_source)
+    debug "get_target_abs returned [$_full_target_pattern]"
 fi
 if [[ -d "$_full_source_pattern/" ]]; then
     _full_source_dir=$_full_source_pattern
@@ -403,32 +441,18 @@ _full_source_dir=$(strip_slash $_full_source_dir)
 _full_target_pattern=$(strip_slash $_full_target_pattern)
 _full_target_dir=$(strip_slash $_full_target_dir)
 
-debug "options: "
-debug "all:$_all"
-debug "remove cache:$_remove_cache"
-debug "optimize:$_optimize"
-debug "diff:$_diff"
-debug "verbose logging:$_log_verbose"
-debug "argument: $@"
-debug "_image_source:$_image_source"
-debug "_image_target:$_image_target"
-debug "full source_pattern: $_full_source_pattern"
-debug "full source_dir: $_full_source_dir"
-debug "full target_pattern: $_full_target_pattern"
-debug "full_target_dir: $_full_target_dir"
-debug "MAKE_CHANGES: $MAKE_CHANGES"
-debug "IGNORE_FILES: $IGNORE_FILES"
-debug "IMAGE_MAX_WIDTH: $IMAGE_MAX_WIDTH"
-debug "IMAGE_DEFAULT_WIDTH: $IMAGE_DEFAULT_WIDTH"
-debug "USE_POSTERIZE: $USE_POSTERIZE"
-debug "USE_IMAGE_OPTIM_DEFAULT: $USE_IMAGE_OPTIM_DEFAULT"
-debug "USE_SVGO: $USE_SVGO"
-debug "ENABLE_WEBP: $ENABLE_WEBP"
-debug ""
-
+debug_variables
 
 # ----- validation rules before we start executing with options ------
 # make sure the _image_source and _image_target exist and are directories; do not error if the output doesn't exist prompt and create
+# if the _full_target_pattern is blank then lets print the output and bail since we shouldn't ever have this case happen unless my script is messed up
+if [[ "$_full_target_pattern" == "" ]]; then
+    _log_verbose=true
+    echo "The full target pattern was empty; this should not happen.  If we were to continue we would attempt to write to the root directory and this should not be allowed.  We should ALWAYS be somewhere within the target directory [$_full_target_dir].  Debug this coding error."
+    echo "variables:"
+    debug_variables
+    exit 1
+fi
 # check that we have appropriate directories or bail
 if [[ ! -d "$_full_source_dir" ]]; then
     echo "The full_source_directory does not exist; you can include a file as the first argument but you must supply the source root directory that exists"
@@ -497,11 +521,11 @@ if [ "$_diff" = "true" ]; then
 	debug '[diff] running conversion and optimization on all images not in the target directory...'
     # ensure the source has a slash or things don't work right
     # NOTE: pattern must be a directory at this point! already validated.
-    _tmp_source=$(strip_slash "$_full_source_pattern")/
+    _tmp_source=$_full_source_pattern/
     debug "[diff] _tmp_source: $_tmp_source"
-    debug "[diff] _full_target_dir"
-    debug "executing rsync -nrvc --delete --ignore-existing $_tmp_source $_full_target_dir | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$|.GIF$|.JPG$|.JPEG$|.PNG$|.TIFF$'"
-    newfiles=$(rsync -nrvc --delete --ignore-existing $_tmp_source $_full_target_dir | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$|.GIF$|.JPG$|.JPEG$|.PNG$|.TIFF$' | grep -v 'deleting')
+    debug "[diff] _full_target_pattern: $_full_target_pattern"
+    debug "executing rsync -nrvc --delete --ignore-existing $_tmp_source $_full_target_pattern | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$|.GIF$|.JPG$|.JPEG$|.PNG$|.TIFF$'"
+    newfiles=$(rsync -nrvc --delete --ignore-existing $_tmp_source $_full_target_pattern | grep -E '.gif$|.jpg$|.jpeg$|.png$|.tiff$|.GIF$|.JPG$|.JPEG$|.PNG$|.TIFF$' | grep -v 'deleting')
     echo "converting and optimizing all files only in the source directory [$_full_source_pattern]: "
     for nf in $newfiles; do
         debug "[diff] nf: $nf"
